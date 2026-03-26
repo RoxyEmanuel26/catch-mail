@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+.env
+.env.example
+.venv
+venv
+.git
+.gitignore
+frontend/
+cloudflare-worker/
+README.md
+.next/
+node_modules/
