@@ -5,12 +5,16 @@
 
 import axios from "axios";
 
+const BACKEND_URL =
+  typeof window !== "undefined" && process.env.NEXT_PUBLIC_BACKEND_URL
+    ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api`
+    : "/api/backend";
+
 const api = axios.create({
-  baseURL: "/api/backend",
+  baseURL: BACKEND_URL,
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true,
 });
 
 // Request interceptor: attach access token
@@ -39,7 +43,7 @@ api.interceptors.response.use(
           throw new Error("No refresh token");
         }
 
-        const response = await axios.post("/api/backend/auth/refresh", {
+        const response = await axios.post(`${BACKEND_URL}/auth/refresh`, {
           refresh_token: refreshToken,
         });
 
