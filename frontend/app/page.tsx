@@ -98,8 +98,9 @@ export default function HomePage() {
       saveAuth(data);
       toast.success("Login berhasil! 🎉");
       router.push("/inbox");
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || "Login gagal";
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      const msg = e.response?.data?.detail || "Login gagal";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -139,8 +140,9 @@ export default function HomePage() {
       setRegUsername("");
       setRegPin(["", "", "", "", "", ""]);
       setRegConfirmPin(["", "", "", "", "", ""]);
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || "Registrasi gagal";
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      const msg = e.response?.data?.detail || "Registrasi gagal";
       setError(msg);
       toast.error(msg);
     } finally {

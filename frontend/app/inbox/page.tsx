@@ -11,6 +11,21 @@ import OTPHighlight from "@/components/OTPHighlight";
 
 const DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || "roxystore.my.id";
 
+interface Message {
+  id: string;
+  from_name?: string;
+  from_address: string;
+  subject: string;
+  otp_detected?: string;
+  is_read: boolean;
+  received_at: string;
+}
+
+interface UserData {
+  email?: string;
+  username?: string;
+}
+
 // Color palette for avatar backgrounds based on domain
 const AVATAR_COLORS = [
   "#059669", "#0891b2", "#7c3aed", "#db2777", "#ea580c",
@@ -27,7 +42,7 @@ function getAvatarColor(email: string) {
 
 export default function InboxPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserData | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "otp">("all");
@@ -113,7 +128,7 @@ export default function InboxPage() {
   // Filter OTP messages client-side
   const displayMessages =
     filter === "otp"
-      ? messages.filter((m: any) => m.otp_detected)
+      ? messages.filter((m: Message) => m.otp_detected)
       : messages;
 
   if (!user) return null;
@@ -248,7 +263,7 @@ export default function InboxPage() {
             </div>
           ) : (
             // Message rows
-            displayMessages.map((msg: any, i: number) => (
+            displayMessages.map((msg: Message, i: number) => (
               <div
                 key={msg.id}
                 onClick={() => router.push(`/message/${msg.id}`)}
@@ -285,7 +300,7 @@ export default function InboxPage() {
                     <div className="otp-badge px-3 py-1.5 rounded-full flex items-center gap-1.5 cursor-default"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigator.clipboard.writeText(msg.otp_detected);
+                        navigator.clipboard.writeText(msg.otp_detected!);
                         toast.success("🔑 OTP disalin!");
                       }}>
                       <span className="text-xs font-bold text-white">🔑 {msg.otp_detected}</span>

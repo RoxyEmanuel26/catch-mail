@@ -117,7 +117,7 @@ export default function MessagePage() {
               </p>
 
               <div className="flex justify-center gap-2 mb-5">
-                {otpDigits.map((digit, i) => (
+                {otpDigits.map((digit: string, i: number) => (
                   <div
                     key={i}
                     className="w-12 h-14 rounded-xl flex items-center justify-center text-2xl font-bold text-emerald-300"
