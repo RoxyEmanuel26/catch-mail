@@ -34,6 +34,9 @@ export function clearAuth() {
 }
 
 export function formatTimeAgo(dateStr: string): string {
+  if (!dateStr.endsWith("Z") && !dateStr.includes("+")) {
+    dateStr += "Z";
+  }
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
