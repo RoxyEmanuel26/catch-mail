@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { fetchInbox, fetchInboxStats, deleteAllMessages, logoutUser, deleteMessage } from "@/lib/api";
+import { fetchInbox, fetchInboxStats, deleteAllMessages, logoutUser, deleteMessage, markAllAsRead } from "@/lib/api";
 import { getUser, isAuthenticated, formatTimeAgo, clearAuth } from "@/lib/auth";
 import CopyButton from "@/components/CopyButton";
 import OTPHighlight from "@/components/OTPHighlight";
@@ -96,15 +96,14 @@ export default function InboxPage() {
     router.push("/");
   }
 
-  async function handleDeleteAll() {
-    if (!confirm("Hapus semua pesan? Tindakan ini tidak bisa dibatalkan.")) return;
+  async function handleMarkAllRead() {
     try {
-      const res = await deleteAllMessages();
-      toast.success(`🗑️ ${res.deleted_count} pesan dihapus`);
+      const res = await markAllAsRead();
+      toast.success(`✅ ${res.marked_count} pesan ditandai sudah dibaca`);
       inboxQuery.refetch();
       statsQuery.refetch();
     } catch {
-      toast.error("Gagal menghapus pesan");
+      toast.error("Gagal menandai pesan");
     }
   }
 
@@ -230,8 +229,8 @@ export default function InboxPage() {
             )}
           </div>
           {total > 0 && (
-            <button onClick={handleDeleteAll} className="btn-danger text-xs">
-              🗑️ Hapus Semua
+            <button onClick={handleMarkAllRead} className="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10 transition-all">
+              ✅ Baca Semua
             </button>
           )}
         </div>

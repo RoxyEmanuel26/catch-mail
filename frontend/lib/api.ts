@@ -113,6 +113,11 @@ export async function deleteAllMessages() {
   return res.data;
 }
 
+export async function markAllAsRead() {
+  const res = await api.put("/inbox/read-all");
+  return res.data;
+}
+
 export async function fetchInboxStats() {
   const res = await api.get("/inbox/stats");
   return res.data;

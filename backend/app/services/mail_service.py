@@ -195,6 +195,16 @@ async def delete_message(user_id: str, message_id: str) -> bool:
     return True
 
 
+async def mark_all_as_read(user_id: str) -> int:
+    """Mark all messages as read for a user."""
+    db = get_db()
+    result = await db.messages.update_many(
+        {"user_id": user_id, "is_read": False},
+        {"$set": {"is_read": True}},
+    )
+    return result.modified_count
+
+
 async def delete_all_messages(user_id: str) -> int:
     """Delete all messages for a user."""
     db = get_db()

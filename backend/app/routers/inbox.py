@@ -11,6 +11,7 @@ from app.services.mail_service import (
     get_message,
     delete_message,
     delete_all_messages,
+    mark_all_as_read,
     get_inbox_stats,
 )
 
@@ -74,6 +75,15 @@ async def remove_message(
     if not success:
         raise HTTPException(status_code=404, detail="Pesan tidak ditemukan")
     return {"deleted_count": 1}
+
+
+@router.put("/read-all")
+async def mark_all_read(
+    current_user: dict = Depends(get_current_user),
+):
+    """Mark all messages as read for the current user."""
+    count = await mark_all_as_read(user_id=current_user["user_id"])
+    return {"marked_count": count}
 
 
 @router.delete("")
