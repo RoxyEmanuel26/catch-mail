@@ -1,0 +1,12 @@
+name = "roxymail-email-worker"
+main = "email-worker.js"
+compatibility_date = "2024-03-27"
+
+[vars]
+# Production Backend Webhook URL
+BACKEND_WEBHOOK_URL = "https://catch-mail-production.up.railway.app/api/webhook/inbound"
+# Fallback email to receive messages if the webhook fails
+FALLBACK_EMAIL = "bemantarazackly@gmail.com"
+
+# The WEBHOOK_SECRET is sensitive. You must set it securely via:
+# npx wrangler secret put WEBHOOK_SECRET
