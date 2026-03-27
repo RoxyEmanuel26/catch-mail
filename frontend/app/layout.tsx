@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
-import "./globals.css";
-import { Toaster } from "react-hot-toast";
+import { Inter } from "next/font/google";
+import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
 import QueryProvider from "@/components/QueryProvider";
+import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "RoxyMail — Email Pribadi @roxystore.my.id",
@@ -16,40 +20,38 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#09090b" />
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📬</text></svg>" />
+        <meta name="theme-color" content="#000000" />
+        <link
+          rel="icon"
+          href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📬</text></svg>"
+        />
       </head>
-      <body>
-        <QueryProvider>
-          {children}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: "#1c1c21",
-                color: "#fafafa",
-                border: "1px solid #27272a",
-                borderRadius: "12px",
-                fontSize: "0.9rem",
-              },
-              success: {
-                iconTheme: {
-                  primary: "#10b981",
-                  secondary: "#fafafa",
+      <body className={inter.className}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange={false}
+        >
+          <QueryProvider>
+            {children}
+            <Toaster
+              position="top-center"
+              toastOptions={{
+                style: {
+                  background: "var(--card)",
+                  color: "var(--text)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "14px",
+                  fontSize: "14px",
+                  fontWeight: "500",
                 },
-              },
-              error: {
-                iconTheme: {
-                  primary: "#ef4444",
-                  secondary: "#fafafa",
-                },
-              },
-            }}
-          />
-        </QueryProvider>
+              }}
+            />
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

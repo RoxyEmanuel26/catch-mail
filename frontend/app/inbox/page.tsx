@@ -3,11 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import toast from "react-hot-toast";
-import { fetchInbox, fetchInboxStats, deleteAllMessages, logoutUser, deleteMessage, markAllAsRead } from "@/lib/api";
+import { toast } from "sonner";
+import {
+  fetchInbox,
+  fetchInboxStats,
+  logoutUser,
+  deleteMessage,
+  markAllAsRead,
+} from "@/lib/api";
 import { getUser, isAuthenticated, formatTimeAgo, clearAuth } from "@/lib/auth";
+import { getColorFromEmail } from "@/lib/utils";
 import CopyButton from "@/components/CopyButton";
-import OTPHighlight from "@/components/OTPHighlight";
+import ThemeToggle from "@/components/ThemeToggle";
+import { Mail, LogOut, Search, Copy, CheckCheck } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || "roxystore.my.id";
 
@@ -26,19 +35,14 @@ interface UserData {
   username?: string;
 }
 
-// Color palette for avatar backgrounds based on domain
-const AVATAR_COLORS = [
-  "#059669", "#0891b2", "#7c3aed", "#db2777", "#ea580c",
-  "#ca8a04", "#16a34a", "#2563eb", "#9333ea", "#e11d48",
-];
-
-function getAvatarColor(email: string) {
-  let hash = 0;
-  for (let i = 0; i < email.length; i++) {
-    hash = email.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
+const container = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+};
+const item = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0 },
+};
 
 export default function InboxPage() {
   const router = useRouter();
@@ -46,7 +50,6 @@ export default function InboxPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "otp">("all");
-  const [showDropdown, setShowDropdown] = useState(false);
   const prevUnread = useRef(0);
 
   useEffect(() => {
@@ -79,11 +82,13 @@ export default function InboxPage() {
     enabled: !!user,
   });
 
-  // New message notification
   useEffect(() => {
-    if (inboxQuery.data?.unread_count > prevUnread.current && prevUnread.current > 0) {
+    if (
+      inboxQuery.data?.unread_count > prevUnread.current &&
+      prevUnread.current > 0
+    ) {
       const newCount = inboxQuery.data.unread_count - prevUnread.current;
-      toast.success(`📬 ${newCount} pesan baru masuk!`, { duration: 4000 });
+      toast.success(`📬 ${newCount} pesan baru masuk!`);
     }
     prevUnread.current = inboxQuery.data?.unread_count ?? 0;
   }, [inboxQuery.data?.unread_count]);
@@ -124,7 +129,6 @@ export default function InboxPage() {
   const totalPages = Math.ceil(total / 20);
   const stats = statsQuery.data;
 
-  // Filter OTP messages client-side
   const displayMessages =
     filter === "otp"
       ? messages.filter((m: Message) => m.otp_detected)
@@ -135,208 +139,307 @@ export default function InboxPage() {
   const userEmail = user.email || `${user.username}@${DOMAIN}`;
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+    <div className="min-h-screen bg-[var(--bg)]">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-zinc-800/60"
-        style={{ background: "rgba(9, 9, 11, 0.85)", backdropFilter: "blur(20px)" }}>
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">📬</span>
-            <span className="text-lg font-bold gradient-text hidden sm:block">RoxyMail</span>
+      <header className="sticky top-0 z-50 glass border-b border-[var(--border)]">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+          {/* Left: Logo */}
+          <div className="flex items-center gap-2">
+            <div
+              className="w-8 h-8 rounded-ios bg-gradient-to-br from-apple-blue
+                          to-apple-indigo flex items-center justify-center"
+            >
+              <Mail size={16} className="text-white" />
+            </div>
+            <span className="font-semibold text-[15px] hidden sm:block">
+              RoxyMail
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
-            <span className="text-sm text-emerald-400 font-medium">{userEmail}</span>
+          {/* Center: Email pill */}
+          <div
+            className="flex items-center gap-1.5 bg-[var(--card2)] rounded-full
+                        px-3 py-1.5 border border-[var(--border)]"
+          >
+            <span className="text-xs font-mono text-[var(--text)] truncate max-w-[160px]">
+              {userEmail}
+            </span>
             <CopyButton text={userEmail} size="small" />
           </div>
 
-          <div className="relative">
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm"
-              style={{ background: "var(--accent)", color: "white" }}>
-              {user.username?.[0]?.toUpperCase() || "R"}
-            </button>
-            {showDropdown && (
-              <div className="absolute right-0 mt-2 w-44 rounded-xl overflow-hidden animate-slide-up"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <button onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors">
-                  🚪 Logout
-                </button>
-              </div>
-            )}
+          {/* Right */}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={handleLogout}
+              className="p-2.5 rounded-ios bg-[var(--card2)] border border-[var(--border)]
+                         text-[var(--subtext)] hover:text-[var(--red)] transition-colors"
+              aria-label="Logout"
+            >
+              <LogOut size={16} />
+            </motion.button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"
+        >
           {[
-            { icon: "📨", label: "Total", value: stats?.total_messages ?? "—" },
-            { icon: "🔵", label: "Belum dibaca", value: stats?.unread_count ?? "—" },
+            {
+              icon: "📨",
+              label: "Total Pesan",
+              value: stats?.total_messages ?? "—",
+            },
+            {
+              icon: "🔵",
+              label: "Belum Dibaca",
+              value: stats?.unread_count ?? "—",
+              accent: (stats?.unread_count ?? 0) > 0,
+            },
             {
               icon: "🕐",
-              label: "Terbaru",
-              value: messages[0]?.received_at ? formatTimeAgo(messages[0].received_at) : "—",
+              label: "Terakhir",
+              value: messages[0]?.received_at
+                ? formatTimeAgo(messages[0].received_at)
+                : "—",
             },
-            { icon: "💾", label: "Storage", value: stats ? `${stats.storage_used_kb} KB` : "—" },
+            {
+              icon: "💾",
+              label: "Storage",
+              value: stats ? `${stats.storage_used_kb} KB` : "—",
+            },
           ].map((stat, i) => (
-            <div key={i} className="glass-card p-4 text-center">
+            <motion.div
+              key={i}
+              variants={item}
+              className="ios-card p-4 text-center"
+            >
               <div className="text-lg mb-1">{stat.icon}</div>
-              <div className="text-lg font-bold text-zinc-100">{stat.value}</div>
-              <div className="text-xs text-zinc-500 mt-0.5">{stat.label}</div>
-            </div>
+              <div
+                className={`text-lg font-bold ${
+                  "accent" in stat && stat.accent
+                    ? "text-[var(--accent)]"
+                    : "text-[var(--text)]"
+                }`}
+              >
+                {stat.value}
+              </div>
+              <div className="text-xs text-[var(--subtext)] mt-0.5">
+                {stat.label}
+              </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
-        {/* Toolbar */}
+        {/* Search & Filter */}
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <div className="flex-1">
+          <div className="flex-1 relative">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--subtext)]"
+            />
             <input
               type="text"
-              placeholder="🔍 Cari pengirim atau subjek..."
+              placeholder="Cari pengirim atau subjek..."
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="input-base w-full"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="ios-input pl-9 !rounded-full"
             />
           </div>
           <div className="flex gap-2">
             {(["all", "unread", "otp"] as const).map((f) => (
               <button
                 key={f}
-                onClick={() => { setFilter(f); setPage(1); }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                onClick={() => {
+                  setFilter(f);
+                  setPage(1);
+                }}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                   filter === f
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : "text-zinc-500 border border-zinc-800 hover:text-zinc-300 hover:border-zinc-700"
-                }`}>
-                {f === "all" ? "Semua" : f === "unread" ? "Belum Dibaca" : "🔑 OTP"}
+                    ? "bg-[var(--accent)] text-white shadow-ios-sm"
+                    : "bg-[var(--card2)] text-[var(--subtext)] border border-[var(--border)] hover:text-[var(--text)]"
+                }`}
+              >
+                {f === "all"
+                  ? "Semua"
+                  : f === "unread"
+                  ? "Belum Dibaca"
+                  : "🔑 OTP"}
               </button>
             ))}
           </div>
         </div>
 
+        {/* Toolbar */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             {inboxQuery.isRefetching && (
-              <span className="flex items-center gap-1.5 text-xs text-zinc-600">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-soft" />
-                Auto-refresh aktif
+              <span className="flex items-center gap-1.5 text-xs text-[var(--subtext)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--green)] animate-pulse-soft" />
+                Live
               </span>
             )}
           </div>
           {total > 0 && (
-            <button onClick={handleMarkAllRead} className="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10 transition-all">
-              ✅ Baca Semua
-            </button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleMarkAllRead}
+              className="px-3 py-1.5 rounded-ios text-xs font-medium
+                         text-[var(--accent)] border border-[var(--accent)]/30
+                         hover:bg-[var(--accent)]/10 transition-all
+                         flex items-center gap-1.5"
+            >
+              <CheckCheck size={14} />
+              Baca Semua
+            </motion.button>
           )}
         </div>
 
         {/* Message List */}
-        <div className="glass-card overflow-hidden">
+        <div className="space-y-2">
           {inboxQuery.isLoading ? (
-            // Skeleton loading
-            <div>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-zinc-800/60">
-                  <div className="w-10 h-10 rounded-full skeleton" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-32 rounded skeleton" />
-                    <div className="h-3 w-48 rounded skeleton" />
-                  </div>
-                  <div className="h-3 w-16 rounded skeleton" />
-                </div>
-              ))}
-            </div>
-          ) : displayMessages.length === 0 ? (
-            // Empty state
-            <div className="text-center py-16 px-6">
-              <div className="text-5xl mb-4">📭</div>
-              <h3 className="text-lg font-semibold text-zinc-300 mb-2">Inbox kosong</h3>
-              <p className="text-zinc-600 text-sm max-w-sm mx-auto">
-                Kirim email ke <span className="text-emerald-400 font-medium">{userEmail}</span> untuk mulai menerima pesan
-              </p>
-            </div>
-          ) : (
-            // Message rows
-            displayMessages.map((msg: Message, i: number) => (
-              <div
-                key={msg.id}
-                onClick={() => router.push(`/message/${msg.id}`)}
-                className={`message-row ${!msg.is_read ? "unread" : ""}`}
-                style={{ animationDelay: `${i * 50}ms` }}>
-                {/* Avatar */}
-                <div
-                  className="avatar"
-                  style={{
-                    background: `${getAvatarColor(msg.from_address)}22`,
-                    color: getAvatarColor(msg.from_address),
-                  }}>
-                  {(msg.from_name || msg.from_address)[0]?.toUpperCase() || "?"}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className={`text-sm truncate ${!msg.is_read ? "font-semibold text-zinc-100" : "text-zinc-400"}`}>
-                      {msg.from_name || msg.from_address}
-                    </span>
-                    {!msg.is_read && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                    )}
-                  </div>
-                  <p className={`text-sm truncate ${!msg.is_read ? "font-medium text-zinc-300" : "text-zinc-500"}`}>
-                    {msg.subject}
-                  </p>
-                </div>
-
-                {/* Right side: OTP + time + delete */}
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  {msg.otp_detected && (
-                    <div className="otp-badge px-3 py-1.5 rounded-full flex items-center gap-1.5 cursor-default"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard.writeText(msg.otp_detected!);
-                        toast.success("🔑 OTP disalin!");
-                      }}>
-                      <span className="text-xs font-bold text-white">🔑 {msg.otp_detected}</span>
-                    </div>
-                  )}
-                  <span className="text-xs text-zinc-600 whitespace-nowrap hidden sm:block">
-                    {formatTimeAgo(msg.received_at)}
-                  </span>
-                  <button
-                    onClick={(e) => handleDeleteOne(e, msg.id)}
-                    className="opacity-0 group-hover:opacity-100 hover:!opacity-100 text-zinc-600 hover:text-red-400 transition-all p-1"
-                    title="Hapus">
-                    🗑️
-                  </button>
+            // Skeleton
+            [...Array(5)].map((_, i) => (
+              <div key={i} className="ios-card p-4 flex items-start gap-3">
+                <div className="skeleton w-10 h-10 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <div className="skeleton h-4 w-32 rounded" />
+                  <div className="skeleton h-3 w-48 rounded" />
                 </div>
               </div>
             ))
+          ) : displayMessages.length === 0 ? (
+            // Empty state
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center py-20"
+            >
+              <div className="text-6xl mb-4">📭</div>
+              <h3 className="text-lg font-semibold mb-2 text-[var(--text)]">
+                Inbox Kosong
+              </h3>
+              <p className="text-[var(--subtext)] text-sm max-w-xs mx-auto">
+                Kirim email ke{" "}
+                <span className="font-mono text-[var(--accent)]">
+                  {userEmail}
+                </span>{" "}
+                untuk mulai menerima pesan
+              </p>
+            </motion.div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {displayMessages.map((msg: Message) => (
+                <motion.div
+                  key={msg.id}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  onClick={() => router.push(`/message/${msg.id}`)}
+                  className={`ios-card p-4 cursor-pointer active:scale-[0.98]
+                             hover:shadow-ios-lg transition-all duration-200
+                             ${!msg.is_read ? "border-l-4 border-l-[var(--accent)]" : ""}`}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Avatar */}
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center
+                                  text-white font-semibold text-sm flex-shrink-0"
+                      style={{
+                        background: getColorFromEmail(msg.from_address),
+                      }}
+                    >
+                      {msg.from_name?.[0]?.toUpperCase() ??
+                        msg.from_address[0]?.toUpperCase()}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span
+                          className={`text-[14px] truncate ${
+                            !msg.is_read ? "font-semibold" : "font-medium"
+                          } text-[var(--text)]`}
+                        >
+                          {msg.from_name || msg.from_address}
+                        </span>
+                        <span className="text-xs text-[var(--subtext)] ml-2 flex-shrink-0">
+                          {formatTimeAgo(msg.received_at)}
+                        </span>
+                      </div>
+                      <p className="text-[13px] text-[var(--subtext)] truncate">
+                        {msg.subject}
+                      </p>
+
+                      {/* OTP Badge */}
+                      {msg.otp_detected && (
+                        <motion.div
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="mt-2 inline-flex items-center gap-2 bg-[var(--green)]/15
+                                     border border-[var(--green)]/30 rounded-ios px-3 py-1.5"
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-[var(--green)] animate-pulse" />
+                          <span className="text-[var(--green)] font-mono font-bold text-sm tracking-widest">
+                            {msg.otp_detected}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(
+                                msg.otp_detected || ""
+                              );
+                              toast.success("Kode OTP disalin!");
+                            }}
+                            className="text-[var(--green)] hover:opacity-70"
+                          >
+                            <Copy size={13} />
+                          </button>
+                        </motion.div>
+                      )}
+                    </div>
+
+                    {/* Unread dot */}
+                    {!msg.is_read && (
+                      <div className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] flex-shrink-0 mt-1" />
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </div>
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-4">
+          <div className="flex items-center justify-center gap-2 mt-6">
             <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="btn-ghost text-sm disabled:opacity-30">
-              ← Prev
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page <= 1}
+              className="ios-btn-secondary text-sm !py-2 !px-4 disabled:opacity-30"
+            >
+              ←
             </button>
-            <span className="text-sm text-zinc-500 px-3">
+            <span className="text-sm text-[var(--subtext)] px-3">
               {page} / {totalPages}
             </span>
             <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="btn-ghost text-sm disabled:opacity-30">
-              Next →
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page >= totalPages}
+              className="ios-btn-secondary text-sm !py-2 !px-4 disabled:opacity-30"
+            >
+              →
             </button>
           </div>
         )}

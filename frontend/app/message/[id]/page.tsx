@@ -3,16 +3,22 @@
 import { useRouter, useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { fetchMessage, deleteMessage } from "@/lib/api";
 import { isAuthenticated, formatTimeAgo } from "@/lib/auth";
+import { getColorFromEmail } from "@/lib/utils";
 import CopyButton from "@/components/CopyButton";
 import OTPHighlight from "@/components/OTPHighlight";
+import ThemeToggle from "@/components/ThemeToggle";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { ChevronLeft, Trash2, KeyRound, Clock, Mail, Copy, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function MessagePage() {
   const router = useRouter();
   const params = useParams();
   const messageId = params?.id as string;
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated()) router.push("/");
@@ -25,7 +31,6 @@ export default function MessagePage() {
   });
 
   async function handleDelete() {
-    if (!confirm("Hapus pesan ini?")) return;
     try {
       await deleteMessage(messageId);
       toast.success("Pesan dihapus");
@@ -37,10 +42,10 @@ export default function MessagePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
         <div className="text-center">
-          <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-zinc-500 text-sm">Memuat pesan...</p>
+          <Loader2 size={32} className="animate-spin text-[var(--accent)] mx-auto mb-3" />
+          <p className="text-[var(--subtext)] text-sm">Memuat pesan...</p>
         </div>
       </div>
     );
@@ -48,96 +53,168 @@ export default function MessagePage() {
 
   if (error || !msg) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
-        <div className="text-center">
-          <div className="text-4xl mb-3">❌</div>
-          <p className="text-zinc-400">Pesan tidak ditemukan</p>
-          <button onClick={() => router.push("/inbox")} className="btn-primary mt-4">
-            ← Kembali ke Inbox
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <div className="text-5xl mb-4">😵</div>
+          <p className="text-[var(--subtext)] mb-4">Pesan tidak ditemukan</p>
+          <button
+            onClick={() => router.push("/inbox")}
+            className="ios-btn-primary"
+          >
+            <ChevronLeft size={16} />
+            Kembali ke Inbox
           </button>
-        </div>
+        </motion.div>
       </div>
     );
   }
 
-  // Split OTP digits for display
   const otpDigits = msg.otp_detected ? msg.otp_detected.split("") : [];
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+    <div className="min-h-screen bg-[var(--bg)]">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-zinc-800/60"
-        style={{ background: "rgba(9, 9, 11, 0.85)", backdropFilter: "blur(20px)" }}>
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <button onClick={() => router.push("/inbox")} className="btn-ghost text-sm">
-            ← Kembali
-          </button>
-          <button onClick={handleDelete} className="btn-danger text-sm">
-            🗑️ Hapus
-          </button>
+      <header className="sticky top-0 z-50 glass border-b border-[var(--border)]">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => router.push("/inbox")}
+            className="ios-btn-secondary !py-2 !px-3 text-sm"
+          >
+            <ChevronLeft size={16} />
+            Kembali
+          </motion.button>
+
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowDeleteConfirm(true)}
+              className="ios-btn-secondary !py-2 !px-3 text-sm text-[var(--red)]
+                         border-[var(--red)]/30 hover:bg-[var(--red)]/10"
+            >
+              <Trash2 size={16} />
+              Hapus
+            </motion.button>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Message Header */}
-        <div className="glass-card p-6 mb-4 animate-fade-in-up">
-          <h1 className="text-xl font-bold text-zinc-100 mb-4">{msg.subject}</h1>
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+        {/* Message Header Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="ios-card p-6"
+        >
+          {/* Sender info */}
+          <div className="flex items-center gap-3 mb-4">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center
+                          text-white font-bold text-lg flex-shrink-0"
+              style={{ background: getColorFromEmail(msg.from_address) }}
+            >
+              {msg.from_name?.[0]?.toUpperCase() ??
+                msg.from_address[0]?.toUpperCase()}
+            </div>
+            <div>
+              <p className="font-semibold text-[var(--text)]">
+                {msg.from_name || msg.from_address}
+              </p>
+              <p className="text-sm text-[var(--subtext)]">
+                {msg.from_address}
+              </p>
+            </div>
+          </div>
 
+          {/* Subject */}
+          <h1 className="text-xl font-bold text-[var(--text)] mb-4">
+            {msg.subject}
+          </h1>
+
+          {/* Metadata */}
           <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-3">
-              <span className="text-zinc-600 w-16">Dari</span>
-              <span className="text-zinc-300 font-medium">
-                {msg.from_name && (
-                  <span className="text-zinc-100">{msg.from_name} </span>
-                )}
-                &lt;{msg.from_address}&gt;
+            <div className="flex items-center gap-2 text-[var(--subtext)]">
+              <Mail size={14} />
+              <span>Kepada:</span>
+              <span className="text-[var(--accent)] font-medium">
+                {msg.to_address}
               </span>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-zinc-600 w-16">Kepada</span>
-              <span className="text-emerald-400 font-medium">{msg.to_address}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-zinc-600 w-16">Waktu</span>
-              <span className="text-zinc-400">{formatTimeAgo(msg.received_at)}</span>
+            <div className="flex items-center gap-2 text-[var(--subtext)]">
+              <Clock size={14} />
+              <span>{formatTimeAgo(msg.received_at)}</span>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* OTP Card */}
+        {/* OTP Hero Card */}
         {msg.otp_detected && (
-          <div className="mb-4 p-6 rounded-2xl animate-fade-in-up"
-            style={{
-              background: "linear-gradient(135deg, rgba(5, 150, 105, 0.15) 0%, rgba(16, 185, 129, 0.08) 100%)",
-              border: "1px solid rgba(16, 185, 129, 0.3)",
-            }}>
-            <div className="text-center">
-              <p className="text-emerald-400 font-semibold text-sm mb-4 flex items-center justify-center gap-2">
-                🔑 Kode OTP Terdeteksi
-              </p>
-
-              <div className="flex justify-center gap-2 mb-5">
-                {otpDigits.map((digit: string, i: number) => (
-                  <div
-                    key={i}
-                    className="w-12 h-14 rounded-xl flex items-center justify-center text-2xl font-bold text-emerald-300"
-                    style={{
-                      background: "rgba(16, 185, 129, 0.12)",
-                      border: "1px solid rgba(16, 185, 129, 0.3)",
-                    }}>
-                    {digit}
-                  </div>
-                ))}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="ios-card p-6 border-2 border-[var(--green)]/40
+                       bg-[var(--green)]/5 shadow-glow-green"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <div
+                className="w-8 h-8 rounded-ios bg-[var(--green)] flex items-center
+                            justify-center"
+              >
+                <KeyRound size={16} className="text-white" />
               </div>
-
-              <CopyButton text={msg.otp_detected} label="📋 Salin Kode" />
+              <span className="font-semibold text-[var(--green)]">
+                Kode OTP Terdeteksi
+              </span>
             </div>
-          </div>
+
+            {/* OTP digits */}
+            <div className="flex justify-center gap-2 mb-4">
+              {otpDigits.map((digit: string, i: number) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="w-12 h-14 flex items-center justify-center
+                             bg-[var(--card)] rounded-ios border-2
+                             border-[var(--green)]/30 font-mono font-bold
+                             text-2xl text-[var(--green)] shadow-ios-sm"
+                >
+                  {digit}
+                </motion.div>
+              ))}
+            </div>
+
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                navigator.clipboard.writeText(msg.otp_detected || "");
+                toast.success("Kode OTP disalin! ✅");
+              }}
+              className="w-full ios-btn-primary !bg-[var(--green)] hover:!bg-[var(--green)]/90"
+            >
+              <Copy size={16} />
+              Salin Kode OTP
+            </motion.button>
+          </motion.div>
         )}
 
         {/* Email Body */}
-        <div className="glass-card overflow-hidden animate-fade-in-up">
-          <div className="p-1">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <p className="text-xs font-semibold text-[var(--subtext)] uppercase tracking-wider mb-2 px-1">
+            Isi Email
+          </p>
+          <div className="ios-card overflow-hidden">
             {msg.body_html ? (
               <iframe
                 sandbox="allow-same-origin"
@@ -148,16 +225,20 @@ export default function MessagePage() {
                     <style>
                       body {
                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                        color: #e4e4e7;
-                        background: #1c1c21;
+                        color: #333;
+                        background: #fff;
                         padding: 20px;
                         font-size: 14px;
                         line-height: 1.6;
                         margin: 0;
                       }
-                      a { color: #34d399; }
+                      a { color: #007AFF; }
                       img { max-width: 100%; height: auto; }
                       table { max-width: 100%; }
+                      @media (prefers-color-scheme: dark) {
+                        body { color: #e4e4e7; background: #1C1C1E; }
+                        a { color: #0A84FF; }
+                      }
                     </style>
                   </head>
                   <body>${msg.body_html}</body>
@@ -172,13 +253,46 @@ export default function MessagePage() {
                 <OTPHighlight text={msg.body_text} />
               </div>
             ) : (
-              <div className="p-5 text-center text-zinc-600">
+              <div className="p-5 text-center text-[var(--subtext)]">
                 <p>Tidak ada konten email</p>
               </div>
             )}
           </div>
+        </motion.div>
+
+        {/* Footer actions */}
+        <div className="flex gap-3 pb-8">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => router.push("/inbox")}
+            className="ios-btn-secondary flex-1"
+          >
+            <ChevronLeft size={16} />
+            Kembali
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowDeleteConfirm(true)}
+            className="ios-btn-secondary flex-1 text-[var(--red)]
+                       border-[var(--red)]/30 hover:bg-[var(--red)]/10"
+          >
+            <Trash2 size={16} />
+            Hapus
+          </motion.button>
         </div>
       </div>
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Hapus Pesan?"
+        message="Pesan yang dihapus tidak dapat dikembalikan."
+        confirmText="Hapus Pesan"
+        cancelText="Batal"
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          handleDelete();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }
