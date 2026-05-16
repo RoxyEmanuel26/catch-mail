@@ -29,7 +29,21 @@ async def process_inbound_email(data: dict) -> dict:
     # 1. Find user by to_address
     user = await db.users.find_one({"email": to_address})
     if not user:
-        return {"status": "ignored", "reason": "unknown address"}
+        # Auto-create unclaimed user inbox
+        username = to_address.split("@")[0]
+        user = {
+            "_id": str(uuid.uuid4()),
+            "email": to_address,
+            "username": username,
+            "domain": settings.DOMAIN,
+            "pin_hash": None,
+            "is_active": True,
+            "created_at": datetime.utcnow(),
+            "expires_at": None,
+            "last_login": None,
+            "failed_attempts": 0,
+        }
+        await db.users.insert_one(user)
 
     # 2. Check duplicate
     existing = await db.messages.find_one({"message_id": message_id})

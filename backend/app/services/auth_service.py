@@ -31,7 +31,25 @@ async def register_user(username: str, pin: str) -> dict:
     # Check if email already exists
     existing = await db.users.find_one({"email": email_addr})
     if existing:
-        raise ValueError("Email sudah terdaftar")
+        if existing.get("pin_hash") is None:
+            # Claim the auto-created account
+            now = datetime.utcnow()
+            await db.users.update_one(
+                {"_id": existing["_id"]},
+                {"$set": {
+                    "pin_hash": hash_pin(pin),
+                    "is_active": True,
+                    "created_at": now
+                }}
+            )
+            return {
+                "email": email_addr,
+                "username": username,
+                "domain": settings.DOMAIN,
+                "created_at": now,
+            }
+        else:
+            raise ValueError("Email sudah terdaftar")
 
     user_doc = {
         "_id": str(__import__("uuid").uuid4()),
@@ -71,6 +89,9 @@ async def login_user(email_addr: str, pin: str) -> dict:
     user = await db.users.find_one({"email": email_addr})
     if not user:
         raise ValueError("Email tidak ditemukan")
+        
+    if not user.get("pin_hash"):
+        raise ValueError("Email ini menampung pesan tetapi belum diklaim. Silakan daftar (Register) terlebih dahulu.")
 
     # Verify PIN
     if not verify_pin(pin, user["pin_hash"]):

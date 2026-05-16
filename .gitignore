@@ -65,3 +65,6 @@ pnpm-debug.log*
 
 # Vercel / Railway
 .vercel/
+
+# RTK Antigravity rules
+.agents/
