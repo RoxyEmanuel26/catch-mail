@@ -63,6 +63,7 @@ async def root():
 
 
 @app.get("/health", tags=["health"])
+@app.head("/health", tags=["health"])
 async def health():
     return {"status": "ok"}
 
