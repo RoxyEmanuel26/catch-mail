@@ -68,3 +68,6 @@ pnpm-debug.log*
 
 # RTK Antigravity rules
 .agents/
+
+# Hugging Face cloned backend Space
+roxy-mail-backend/
