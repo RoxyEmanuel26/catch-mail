@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/backend/:path*",
-      "destination": "https://roxymail-api.up.railway.app/api/:path*"
+      "destination": "https://bimantara26-roxy-mail-backend.hf.space/api/:path*"
     }
   ]
 }
