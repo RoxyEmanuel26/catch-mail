@@ -6,7 +6,7 @@ compatibility_date = "2024-03-27"
 # Production Backend Webhook URL
 BACKEND_WEBHOOK_URL = "https://bimantara26-roxy-mail-backend.hf.space/api/webhook/inbound"
 # Fallback email to receive messages if the webhook fails
-FALLBACK_EMAIL = "bemantarazackly@gmail.com"
+FALLBACK_EMAIL = "bimantara1997@yahoo.com"
 
 # The WEBHOOK_SECRET is sensitive. You must set it securely via:
 # npx wrangler secret put WEBHOOK_SECRET
