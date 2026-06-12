@@ -133,6 +133,7 @@ export async function fetchInbox(params: {
   unread_only?: boolean;
   search?: string;
   otp_only?: boolean;
+  folder?: string;
 }) {
   const res = await api.get("/inbox", { params });
   return res.data;
@@ -140,6 +141,11 @@ export async function fetchInbox(params: {
 
 export async function fetchMessage(id: string) {
   const res = await api.get(`/inbox/${id}`);
+  return res.data;
+}
+
+export async function moveMessageToFolder(id: string, folder: string) {
+  const res = await api.put(`/inbox/${id}/folder`, null, { params: { folder } });
   return res.data;
 }
 

@@ -43,7 +43,7 @@ async def process_inbound_email(data: dict) -> dict:
     message_id = data.get("message_id", str(uuid.uuid4()))
     raw_email = data.get("raw_email", "")
 
-    # 1. Parse domain and validate (C8, C9)
+    # 1. Parse domain and validate
     if "@" not in to_address:
         return {"status": "rejected", "reason": "invalid to_address format"}
     
@@ -71,7 +71,7 @@ async def process_inbound_email(data: dict) -> dict:
         try:
             await db.users.insert_one(user)
         except DuplicateKeyError:
-            # Race condition: user was created concurrently (H4)
+            # Race condition: user was created concurrently
             user = await db.users.find_one({"email": to_address})
             if not user:
                 raise RuntimeError("Failed to retrieve or create user inbox")
@@ -109,7 +109,7 @@ async def process_inbound_email(data: dict) -> dict:
         if oldest_ids:
             await db.messages.delete_many({"_id": {"$in": oldest_ids}})
 
-    # 7. Insert message
+    # 7. Insert message (added folder parameter, default to "inbox")
     now = datetime.now(timezone.utc)
     msg_doc = {
         "_id": str(uuid.uuid4()),
@@ -126,12 +126,13 @@ async def process_inbound_email(data: dict) -> dict:
         "is_read": False,
         "received_at": now,
         "expires_at": now + timedelta(hours=settings.MESSAGE_TTL_HOURS),
+        "folder": "inbox",
     }
 
     try:
         await db.messages.insert_one(msg_doc)
     except DuplicateKeyError:
-        # Race condition: message was inserted concurrently (H5)
+        # Race condition: message was inserted concurrently
         return {"status": "duplicate", "reason": "message already exists"}
 
     # 8. Increment unread counter in Redis
@@ -151,8 +152,9 @@ async def get_inbox(
     unread_only: bool = False,
     search: str = "",
     otp_only: bool = False,
+    folder: str = "inbox",
 ) -> dict:
-    """Get paginated inbox for a user."""
+    """Get paginated inbox for a user in a specific folder (inbox, spam, trash)."""
     db = get_db()
 
     query = {"user_id": user_id}
@@ -163,8 +165,14 @@ async def get_inbox(
     if otp_only:
         query["otp_detected"] = {"$ne": None}
 
+    # Filter by folder
+    if folder == "inbox":
+        query["folder"] = {"$in": ["inbox", None]}
+    else:
+        query["folder"] = folder
+
     if search:
-        # Escape regex input (H3)
+        # Escape regex input
         safe_search = re.escape(search)
         query["$or"] = [
             {"subject": {"$regex": safe_search, "$options": "i"}},
@@ -174,7 +182,7 @@ async def get_inbox(
 
     total = await db.messages.count_documents(query)
     unread_count = await db.messages.count_documents(
-        {"user_id": user_id, "is_read": False}
+        {"user_id": user_id, "is_read": False, "folder": {"$in": ["inbox", None]}}
     )
 
     skip = (page - 1) * limit
@@ -196,6 +204,7 @@ async def get_inbox(
                 "otp_detected": doc.get("otp_detected"),
                 "is_read": doc.get("is_read", False),
                 "received_at": doc.get("received_at", datetime.now(timezone.utc)),
+                "folder": doc.get("folder", "inbox"),
             }
         )
 
@@ -219,12 +228,13 @@ async def get_message(user_id: str, message_id: str) -> Optional[dict]:
     if msg["user_id"] != user_id:
         return None
 
-    # Mark as read and decrement unread count (M3)
+    # Mark as read and decrement unread count (only if it's in the inbox folder)
     if not msg.get("is_read"):
         await db.messages.update_one(
             {"_id": message_id}, {"$set": {"is_read": True}}
         )
-        await decrement_unread(user_id)
+        if msg.get("folder", "inbox") == "inbox":
+            await decrement_unread(user_id)
 
     return {
         "id": msg["_id"],
@@ -238,29 +248,66 @@ async def get_message(user_id: str, message_id: str) -> Optional[dict]:
         "otp_detected": msg.get("otp_detected"),
         "is_read": True,
         "received_at": msg.get("received_at", datetime.now(timezone.utc)),
+        "folder": msg.get("folder", "inbox"),
     }
 
 
-async def delete_message(user_id: str, message_id: str) -> bool:
-    """Delete a single message in a single round-trip (L16) and decrement unread if needed."""
+async def update_message_folder(user_id: str, message_id: str, folder: str) -> bool:
+    """Move a message to a specific folder (inbox, spam, trash) and adjust unread counter."""
     db = get_db()
-
-    # find_one_and_delete executes in a single round-trip and returns the deleted doc
-    deleted_msg = await db.messages.find_one_and_delete({"_id": message_id, "user_id": user_id})
-    if not deleted_msg:
+    if folder not in ["inbox", "spam", "trash"]:
         return False
 
-    if not deleted_msg.get("is_read", False):
-        await decrement_unread(user_id)
+    msg = await db.messages.find_one({"_id": message_id, "user_id": user_id})
+    if not msg:
+        return False
+
+    old_folder = msg.get("folder", "inbox")
+    if old_folder == folder:
+        return True
+
+    result = await db.messages.update_one(
+        {"_id": message_id},
+        {"$set": {"folder": folder}}
+    )
+
+    # Adjust unread counters in Redis if we are moving to/from the inbox
+    if not msg.get("is_read", False):
+        if old_folder == "inbox" and folder != "inbox":
+            await decrement_unread(user_id)
+        elif old_folder != "inbox" and folder == "inbox":
+            try:
+                await redis.incr(f"unread:{user_id}")
+            except Exception:
+                pass
+
+    return result.modified_count > 0
+
+
+async def delete_message(user_id: str, message_id: str) -> bool:
+    """Delete a message: move to trash if in inbox/spam, delete permanently if already in trash."""
+    db = get_db()
+
+    msg = await db.messages.find_one({"_id": message_id, "user_id": user_id})
+    if not msg:
+        return False
+
+    if msg.get("folder", "inbox") == "trash":
+        # Already in trash, delete permanently
+        await db.messages.delete_one({"_id": message_id})
+        # Note: unread count is already decremented when message was moved to trash.
+    else:
+        # Move to trash first
+        await update_message_folder(user_id, message_id, "trash")
 
     return True
 
 
 async def mark_all_as_read(user_id: str) -> int:
-    """Mark all messages as read for a user and clear unread key."""
+    """Mark all inbox messages as read for a user and clear unread key."""
     db = get_db()
     result = await db.messages.update_many(
-        {"user_id": user_id, "is_read": False},
+        {"user_id": user_id, "is_read": False, "folder": {"$in": ["inbox", None]}},
         {"$set": {"is_read": True}},
     )
     try:
@@ -271,14 +318,29 @@ async def mark_all_as_read(user_id: str) -> int:
 
 
 async def delete_all_messages(user_id: str) -> int:
-    """Delete all messages for a user and clear unread key."""
+    """Delete all messages for a user: permanently delete trash, move inbox/spam to trash."""
     db = get_db()
-    result = await db.messages.delete_many({"user_id": user_id})
-    try:
-        await redis.delete(f"unread:{user_id}")
-    except Exception:
-        pass
-    return result.deleted_count
+    # 1. Permanently delete all trash
+    trash_del = await db.messages.delete_many({"user_id": user_id, "folder": "trash"})
+    
+    # 2. Get unread inbox messages count that are moving to trash to adjust redis
+    unread_moving = await db.messages.count_documents(
+        {"user_id": user_id, "is_read": False, "folder": {"$in": ["inbox", None]}}
+    )
+    
+    # 3. Move other messages to trash
+    move_result = await db.messages.update_many(
+        {"user_id": user_id, "folder": {"$ne": "trash"}},
+        {"$set": {"folder": "trash"}}
+    )
+
+    if unread_moving > 0:
+        try:
+            await redis.delete(f"unread:{user_id}")
+        except Exception:
+            pass
+
+    return trash_del.deleted_count + move_result.modified_count
 
 
 async def get_inbox_stats(user_id: str, email_addr: str) -> dict:
@@ -287,7 +349,7 @@ async def get_inbox_stats(user_id: str, email_addr: str) -> dict:
 
     total = await db.messages.count_documents({"user_id": user_id})
     unread = await db.messages.count_documents(
-        {"user_id": user_id, "is_read": False}
+        {"user_id": user_id, "is_read": False, "folder": {"$in": ["inbox", None]}}
     )
 
     # Get oldest message

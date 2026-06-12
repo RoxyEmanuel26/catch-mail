@@ -4,14 +4,14 @@ import { useRouter, useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { fetchMessage, deleteMessage } from "@/lib/api";
+import { fetchMessage, deleteMessage, moveMessageToFolder } from "@/lib/api";
 import { isAuthenticated, formatTimeAgo } from "@/lib/auth";
 import { getColorFromEmail, copyToClipboard } from "@/lib/utils";
 import CopyButton from "@/components/CopyButton";
 import OTPHighlight from "@/components/OTPHighlight";
 import ThemeToggle from "@/components/ThemeToggle";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { ChevronLeft, Trash2, KeyRound, Clock, Mail, Copy, Loader2 } from "lucide-react";
+import { ChevronLeft, Trash2, KeyRound, Clock, Mail, Copy, Loader2, ShieldAlert, RotateCcw, Inbox } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function MessagePage() {
@@ -45,10 +45,25 @@ export default function MessagePage() {
   async function handleDelete() {
     try {
       await deleteMessage(messageId);
-      toast.success("Pesan dihapus");
+      toast.success(msg?.folder === "trash" ? "Pesan dihapus permanen" : "Pesan dipindahkan ke Sampah");
       router.push("/inbox");
     } catch {
       toast.error("Gagal menghapus pesan");
+    }
+  }
+
+  async function handleMoveFolder(targetFolder: "inbox" | "spam" | "trash") {
+    try {
+      await moveMessageToFolder(messageId, targetFolder);
+      const folderNames = {
+        inbox: "Kotak Masuk",
+        spam: "Spam",
+        trash: "Sampah",
+      };
+      toast.success(`Pesan dipindahkan ke ${folderNames[targetFolder]}`);
+      router.push("/inbox");
+    } catch {
+      toast.error("Gagal memindahkan pesan");
     }
   }
 
@@ -110,7 +125,7 @@ export default function MessagePage() {
                          border-[var(--red)]/30 hover:bg-[var(--red)]/10"
             >
               <Trash2 size={16} />
-              Hapus
+              {msg.folder === "trash" ? "Hapus Permanen" : "Hapus"}
             </motion.button>
           </div>
         </div>
@@ -291,31 +306,69 @@ export default function MessagePage() {
         </motion.div>
 
         {/* Footer actions */}
-        <div className="flex gap-3 pb-8">
+        <div className="grid grid-cols-2 sm:flex sm:justify-end gap-3 pb-8">
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push("/inbox")}
-            className="ios-btn-secondary flex-1"
+            className="ios-btn-secondary flex-1 sm:flex-initial"
           >
             <ChevronLeft size={16} />
             Kembali
           </motion.button>
+
+          {msg.folder === "spam" && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleMoveFolder("inbox")}
+              className="ios-btn-secondary flex-1 sm:flex-initial text-[var(--accent)] border-[var(--accent)]/30 hover:bg-[var(--accent)]/10"
+            >
+              <Inbox size={16} />
+              Bukan Spam
+            </motion.button>
+          )}
+
+          {msg.folder === "inbox" && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleMoveFolder("spam")}
+              className="ios-btn-secondary flex-1 sm:flex-initial text-[var(--yellow)] border-[var(--yellow)]/30 hover:bg-[var(--yellow)]/10"
+            >
+              <ShieldAlert size={16} />
+              Spam
+            </motion.button>
+          )}
+
+          {msg.folder === "trash" && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleMoveFolder("inbox")}
+              className="ios-btn-secondary flex-1 sm:flex-initial text-[var(--accent)] border-[var(--accent)]/30 hover:bg-[var(--accent)]/10"
+            >
+              <RotateCcw size={16} />
+              Pulihkan
+            </motion.button>
+          )}
+
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowDeleteConfirm(true)}
-            className="ios-btn-secondary flex-1 text-[var(--red)]
+            className="ios-btn-secondary flex-1 sm:flex-initial text-[var(--red)]
                        border-[var(--red)]/30 hover:bg-[var(--red)]/10"
           >
             <Trash2 size={16} />
-            Hapus
+            {msg.folder === "trash" ? "Hapus Permanen" : "Hapus"}
           </motion.button>
         </div>
       </div>
       <ConfirmDialog
         isOpen={showDeleteConfirm}
-        title="Hapus Pesan?"
-        message="Pesan yang dihapus tidak dapat dikembalikan."
-        confirmText="Hapus Pesan"
+        title={msg.folder === "trash" ? "Hapus Permanen?" : "Hapus Pesan?"}
+        message={
+          msg.folder === "trash"
+            ? "Pesan ini akan dihapus secara permanen dari database."
+            : "Pesan ini akan dipindahkan ke folder Sampah."
+        }
+        confirmText={msg.folder === "trash" ? "Hapus Permanen" : "Pindahkan ke Sampah"}
         cancelText="Batal"
         onConfirm={() => {
           setShowDeleteConfirm(false);

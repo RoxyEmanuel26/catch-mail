@@ -13,7 +13,7 @@ import {
   fetchMessage,
 } from "@/lib/api";
 import { getUser, isAuthenticated, formatTimeAgo, clearAuth } from "@/lib/auth";
-import { getColorFromEmail } from "@/lib/utils";
+import { getColorFromEmail, copyToClipboard } from "@/lib/utils";
 import CopyButton from "@/components/CopyButton";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Mail, LogOut, Search, Copy, CheckCheck } from "lucide-react";
@@ -30,6 +30,7 @@ interface Message {
   otp_detected?: string;
   is_read: boolean;
   received_at: string;
+  folder: string;
 }
 
 interface UserData {
@@ -54,6 +55,7 @@ export default function InboxPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "otp">("all");
+  const [activeFolder, setActiveFolder] = useState<"inbox" | "spam" | "trash">("inbox");
   const prevUnread = useRef<number | null>(null);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export default function InboxPage() {
   }, [search]);
 
   const inboxQuery = useQuery({
-    queryKey: ["inbox", page, debouncedSearch, filter],
+    queryKey: ["inbox", page, debouncedSearch, filter, activeFolder],
     queryFn: () =>
       fetchInbox({
         page,
@@ -86,6 +88,7 @@ export default function InboxPage() {
         unread_only: filter === "unread",
         search: debouncedSearch,
         otp_only: filter === "otp",
+        folder: activeFolder,
       }),
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
@@ -144,7 +147,7 @@ export default function InboxPage() {
     e.stopPropagation();
     try {
       await deleteMessage(id);
-      toast.success("Pesan dihapus");
+      toast.success(activeFolder === "trash" ? "Pesan dihapus permanen" : "Pesan dipindahkan ke Sampah");
       inboxQuery.refetch();
       statsQuery.refetch();
     } catch {
@@ -209,6 +212,32 @@ export default function InboxPage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-6">
+        {/* iOS Folder Segmented Control */}
+        <div className="flex bg-[var(--card2)] rounded-ios p-1 mb-6 border border-[var(--border)]">
+          {[
+            { id: "inbox", label: "Inbox 📥" },
+            { id: "spam", label: "Spam 🚫" },
+            { id: "trash", label: "Trash 🗑️" }
+          ].map((folder) => (
+            <button
+              key={folder.id}
+              onClick={() => {
+                setActiveFolder(folder.id as any);
+                setFilter("all");
+                setPage(1);
+              }}
+              className={`flex-1 py-2 text-xs font-semibold rounded-[10px]
+                          transition-all duration-200 relative
+                          ${activeFolder === folder.id
+                            ? "bg-[var(--card)] text-[var(--text)] shadow-ios-sm"
+                            : "text-[var(--subtext)] hover:text-[var(--text)]"
+                          }`}
+            >
+              {folder.label}
+            </button>
+          ))}
+        </div>
+
         {/* Stats Cards */}
         <motion.div
           variants={container}
@@ -315,7 +344,7 @@ export default function InboxPage() {
               </span>
             )}
           </div>
-          {total > 0 && (
+          {total > 0 && activeFolder === "inbox" && (
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleMarkAllRead}
@@ -352,14 +381,20 @@ export default function InboxPage() {
             >
               <div className="text-6xl mb-4">📭</div>
               <h3 className="text-lg font-semibold mb-2 text-[var(--text)]">
-                Inbox Kosong
+                {activeFolder === "inbox" ? "Inbox Kosong" : activeFolder === "spam" ? "Folder Spam Kosong" : "Folder Sampah Kosong"}
               </h3>
               <p className="text-[var(--subtext)] text-sm max-w-xs mx-auto">
-                Kirim email ke{" "}
-                <span className="font-mono text-[var(--accent)]">
-                  {userEmail}
-                </span>{" "}
-                untuk mulai menerima pesan
+                {activeFolder === "inbox" ? (
+                  <>
+                    Kirim email ke{" "}
+                    <span className="font-mono text-[var(--accent)]">{userEmail}</span>{" "}
+                    untuk mulai menerima pesan
+                  </>
+                ) : activeFolder === "spam" ? (
+                  "Tidak ada pesan yang dicurigai sebagai spam."
+                ) : (
+                  "Tidak ada pesan di tempat sampah."
+                )}
               </p>
             </motion.div>
           ) : (
@@ -415,18 +450,21 @@ export default function InboxPage() {
                           animate={{ scale: 1, opacity: 1 }}
                           className="mt-2 inline-flex items-center gap-2 bg-[var(--green)]/15
                                      border border-[var(--green)]/30 rounded-ios px-3 py-1.5"
+                          onClick={(e) => e.stopPropagation()} // Prevent navigation when clicking card badge
                         >
                           <div className="w-1.5 h-1.5 rounded-full bg-[var(--green)] animate-pulse" />
                           <span className="text-[var(--green)] font-mono font-bold text-sm tracking-widest">
                             {msg.otp_detected}
                           </span>
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              navigator.clipboard.writeText(
-                                msg.otp_detected || ""
-                              );
-                              toast.success("Kode OTP disalin!");
+                              const success = await copyToClipboard(msg.otp_detected || "");
+                              if (success) {
+                                toast.success("Kode OTP disalin! ✅");
+                              } else {
+                                toast.error("Gagal menyalin Kode OTP");
+                              }
                             }}
                             className="text-[var(--green)] hover:opacity-70"
                           >

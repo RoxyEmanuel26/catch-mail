@@ -13,6 +13,7 @@ from app.services.mail_service import (
     delete_all_messages,
     mark_all_as_read,
     get_inbox_stats,
+    update_message_folder,
 )
 
 router = APIRouter(prefix="/api/inbox", tags=["inbox"])
@@ -25,6 +26,7 @@ async def list_inbox(
     unread_only: bool = Query(False),
     search: str = Query(""),
     otp_only: bool = Query(False),
+    folder: str = Query("inbox"),
     current_user: dict = Depends(get_current_user),
 ):
     """Get paginated inbox for the current user."""
@@ -35,6 +37,7 @@ async def list_inbox(
         unread_only=unread_only,
         search=search,
         otp_only=otp_only,
+        folder=folder,
     )
     return result
 
@@ -66,12 +69,32 @@ async def read_message(
     return result
 
 
+@router.put("/{message_id}/folder")
+async def move_message_folder(
+    message_id: str,
+    folder: str = Query(..., pattern="^(inbox|spam|trash)$"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Move a message to a specific folder (inbox, spam, or trash)."""
+    success = await update_message_folder(
+        user_id=current_user["user_id"],
+        message_id=message_id,
+        folder=folder,
+    )
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Pesan tidak ditemukan atau folder tidak valid"
+        )
+    return {"status": "success", "folder": folder}
+
+
 @router.delete("/{message_id}")
 async def remove_message(
     message_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    """Delete a single message."""
+    """Delete a single message (moves to trash or deletes permanently if already in trash)."""
     success = await delete_message(
         user_id=current_user["user_id"],
         message_id=message_id,
@@ -94,6 +117,6 @@ async def mark_all_read(
 async def remove_all_messages(
     current_user: dict = Depends(get_current_user),
 ):
-    """Delete all messages for the current user."""
+    """Delete all messages for the current user (clears trash and moves rest to trash)."""
     count = await delete_all_messages(user_id=current_user["user_id"])
     return {"deleted_count": count}
