@@ -45,7 +45,20 @@ class LoginRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, v):
-        return v.lower().strip()
+        v = v.lower().strip()
+        if "@" not in v:
+            raise ValueError("Format email tidak valid")
+        parts = v.split("@")
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise ValueError("Format email tidak valid")
+        return v
+
+    @field_validator("pin")
+    @classmethod
+    def validate_pin(cls, v):
+        if not v.isdigit():
+            raise ValueError("PIN harus 6 digit angka")
+        return v
 
 
 class LoginResponse(BaseModel):

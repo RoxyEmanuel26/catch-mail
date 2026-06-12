@@ -24,6 +24,7 @@ async def list_inbox(
     limit: int = Query(20, ge=1, le=100),
     unread_only: bool = Query(False),
     search: str = Query(""),
+    otp_only: bool = Query(False),
     current_user: dict = Depends(get_current_user),
 ):
     """Get paginated inbox for the current user."""
@@ -33,10 +34,13 @@ async def list_inbox(
         limit=limit,
         unread_only=unread_only,
         search=search,
+        otp_only=otp_only,
     )
     return result
 
 
+# WARNING: This route (/stats) must be defined BEFORE the message detail route (/{message_id})
+# otherwise FastAPI will match "/stats" to the message ID pattern and throw a 404 or 422 error.
 @router.get("/stats")
 async def inbox_stats(current_user: dict = Depends(get_current_user)):
     """Get inbox statistics."""

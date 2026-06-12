@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/api/backend/:path*",
-      "destination": "https://bimantara26-roxy-mail-backend.hf.space/api/:path*"
-    }
-  ]
-}

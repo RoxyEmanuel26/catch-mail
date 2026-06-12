@@ -9,17 +9,9 @@ import { Mail, AlertCircle, Loader2, ChevronDown, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CopyButton from "@/components/CopyButton";
 import ThemeToggle from "@/components/ThemeToggle";
+import { DOMAINS, DEFAULT_DOMAIN } from "@/lib/constants";
 
-const DOMAINS = [
-  "roxystore.my.id",
-  "kumpulenak.my.id",
-  "kumpulenak.web.id",
-  "missav-j.web.id",
-  "roxy.my.id",
-  "roxypiano.web.id",
-  "roxystore.web.id"
-];
-const DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || DOMAINS[0];
+const DOMAIN = DEFAULT_DOMAIN;
 
 export default function HomePage() {
   const router = useRouter();
@@ -60,10 +52,10 @@ export default function HomePage() {
       const digits = value.replace(/\D/g, "").slice(0, 6).split("");
       const newPins = [...pins];
       digits.forEach((d, i) => {
-        if (i < 6) newPins[i] = d;
+        if (index + i < 6) newPins[index + i] = d;
       });
       setPins(newPins);
-      const nextIdx = Math.min(digits.length, 5);
+      const nextIdx = Math.min(index + digits.length, 5);
       refs.current[nextIdx]?.focus();
       return;
     }
@@ -82,6 +74,7 @@ export default function HomePage() {
     refs: React.MutableRefObject<(HTMLInputElement | null)[]>
   ) {
     if (e.key === "Backspace" && !pins[index] && index > 0) {
+      e.preventDefault();
       const newPins = [...pins];
       newPins[index - 1] = "";
       setPins(newPins);
@@ -105,6 +98,7 @@ export default function HomePage() {
     try {
       const data = await loginUser(email, pin);
       saveAuth(data);
+      setLoginPin(["", "", "", "", "", ""]); // Clear PIN after success (M14)
       toast.success("Login berhasil! 🎉");
       router.push("/inbox");
     } catch (err: unknown) {
@@ -255,6 +249,8 @@ export default function HomePage() {
                 exit={{ opacity: 0, y: -10 }}
                 className="mb-4 p-3 rounded-ios text-sm font-medium flex items-center gap-2
                            bg-[var(--red)]/10 border border-[var(--red)]/30 text-[var(--red)]"
+                role="alert"
+                aria-live="polite"
               >
                 <AlertCircle size={16} />
                 {error}
@@ -316,7 +312,7 @@ export default function HomePage() {
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: -8, scale: 0.95 }}
                                 transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                                className="absolute right-0 top-[calc(100%+8px)] w-64 z-50 rounded-ios bg-[var(--card)] border border-[var(--border)] shadow-ios-lg overflow-hidden glass"
+                                className="absolute right-0 top-[calc(100%+8px)] w-64 z-50 rounded-ios border border-[var(--border)] shadow-ios-lg overflow-hidden glass"
                               >
                                 <div className="max-h-[220px] overflow-y-auto py-1.5 scrollbar-thin">
                                   {DOMAINS.map((d) => (
@@ -414,7 +410,7 @@ export default function HomePage() {
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: -8, scale: 0.95 }}
                               transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                              className="absolute right-0 top-[calc(100%+8px)] w-64 z-50 rounded-ios bg-[var(--card)] border border-[var(--border)] shadow-ios-lg overflow-hidden glass"
+                              className="absolute right-0 top-[calc(100%+8px)] w-64 z-50 rounded-ios border border-[var(--border)] shadow-ios-lg overflow-hidden glass"
                             >
                               <div className="max-h-[220px] overflow-y-auto py-1.5 scrollbar-thin">
                                 {DOMAINS.map((d) => (

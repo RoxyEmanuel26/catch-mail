@@ -18,8 +18,9 @@ import CopyButton from "@/components/CopyButton";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Mail, LogOut, Search, Copy, CheckCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { DOMAINS, DEFAULT_DOMAIN } from "@/lib/constants";
 
-const DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || "roxystore.my.id";
+const DOMAIN = DEFAULT_DOMAIN;
 
 interface Message {
   id: string;
@@ -53,7 +54,7 @@ export default function InboxPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "otp">("all");
-  const prevUnread = useRef(0);
+  const prevUnread = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -84,6 +85,7 @@ export default function InboxPage() {
         limit: 20,
         unread_only: filter === "unread",
         search: debouncedSearch,
+        otp_only: filter === "otp",
       }),
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
@@ -107,14 +109,16 @@ export default function InboxPage() {
   };
 
   useEffect(() => {
-    if (
-      inboxQuery.data?.unread_count > prevUnread.current &&
-      prevUnread.current > 0
-    ) {
-      const newCount = inboxQuery.data.unread_count - prevUnread.current;
-      toast.success(`📬 ${newCount} pesan baru masuk!`);
+    if (inboxQuery.data?.unread_count !== undefined) {
+      if (
+        prevUnread.current !== null &&
+        inboxQuery.data.unread_count > prevUnread.current
+      ) {
+        const newCount = inboxQuery.data.unread_count - prevUnread.current;
+        toast.success(`📬 ${newCount} pesan baru masuk!`);
+      }
+      prevUnread.current = inboxQuery.data.unread_count;
     }
-    prevUnread.current = inboxQuery.data?.unread_count ?? 0;
   }, [inboxQuery.data?.unread_count]);
 
   async function handleLogout() {
@@ -153,10 +157,7 @@ export default function InboxPage() {
   const totalPages = Math.ceil(total / 20);
   const stats = statsQuery.data;
 
-  const displayMessages =
-    filter === "otp"
-      ? messages.filter((m: Message) => m.otp_detected)
-      : messages;
+  const displayMessages = messages;
 
   if (!user) return null;
 

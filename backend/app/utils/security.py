@@ -3,11 +3,11 @@ RoxyMail — Security Utilities
 JWT creation/verification and bcrypt PIN hashing.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import uuid
 
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 
 from app.config import settings
@@ -34,7 +34,7 @@ def create_access_token(
     user_id: str, email: str, expires_delta: Optional[timedelta] = None
 ) -> str:
     """Create a JWT access token."""
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta
         or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MIN)
     )
@@ -54,7 +54,7 @@ def create_refresh_token(
     user_id: str, expires_delta: Optional[timedelta] = None
 ) -> tuple[str, str, datetime]:
     """Create a JWT refresh token. Returns (token, jti, expires_at)."""
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta
         or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     )
@@ -78,7 +78,7 @@ def decode_token(token: str) -> Optional[dict]:
             token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
         return payload
-    except JWTError:
+    except jwt.PyJWTError:
         return None
 
 
@@ -87,6 +87,6 @@ def get_token_remaining_seconds(token: str) -> int:
     payload = decode_token(token)
     if not payload or "exp" not in payload:
         return 0
-    exp = datetime.utcfromtimestamp(payload["exp"])
-    remaining = (exp - datetime.utcnow()).total_seconds()
+    exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    remaining = (exp - datetime.now(timezone.utc)).total_seconds()
     return max(0, int(remaining))

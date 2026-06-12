@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { copyToClipboard } from "../lib/utils";
 
 interface Props {
   text: string;
@@ -21,9 +22,13 @@ export default function OTPHighlight({ text }: Props) {
                        hover:opacity-80 transition-opacity bg-yellow-200 dark:bg-yellow-900/40
                        text-yellow-800 dark:text-yellow-200 border border-yellow-300
                        dark:border-yellow-700/50"
-            onClick={() => {
-              navigator.clipboard.writeText(part);
-              toast.success(`Kode ${part} disalin!`);
+            onClick={async () => {
+              const success = await copyToClipboard(part);
+              if (success) {
+                toast.success(`Kode ${part} disalin!`);
+              } else {
+                toast.error("Gagal menyalin kode");
+              }
             }}
             title="Klik untuk menyalin"
           >

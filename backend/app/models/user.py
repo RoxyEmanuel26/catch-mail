@@ -4,7 +4,7 @@ RoxyMail — User Model
 
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -13,9 +13,9 @@ class UserModel(BaseModel):
     email: str
     username: str
     domain: str = "roxystore.my.id"
-    pin_hash: str
+    pin_hash: Optional[str] = None
     is_active: bool = True
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None  # None = permanent
     last_login: Optional[datetime] = None
     failed_attempts: int = 0

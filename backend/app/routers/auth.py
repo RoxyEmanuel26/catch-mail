@@ -20,6 +20,7 @@ from app.services.auth_service import (
     is_token_blacklisted,
 )
 from app.utils.security import decode_token
+from app.middleware.rate_limiter import limiter
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -51,7 +52,8 @@ async def get_current_user(request: Request) -> dict:
 
 
 @router.post("/register", response_model=RegisterResponse)
-async def register(data: RegisterRequest):
+@limiter.limit("3/minute")
+async def register(request: Request, data: RegisterRequest):
     """Register a new email address with custom username."""
     try:
         result = await register_user(data.username, data.pin, data.domain)
@@ -61,7 +63,8 @@ async def register(data: RegisterRequest):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(data: LoginRequest):
+@limiter.limit("5/minute")
+async def login(request: Request, data: LoginRequest):
     """Login with email + PIN."""
     try:
         result = await login_user(data.email, data.pin)

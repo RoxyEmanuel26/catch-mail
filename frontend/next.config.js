@@ -4,7 +4,9 @@ const nextConfig = {
   async rewrites() {
     const backendUrl =
       process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-    console.log("🔗 Backend rewrite target:", backendUrl);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("🔗 Backend rewrite target:", backendUrl);
+    }
     return [
       {
         source: "/api/backend/:path*",

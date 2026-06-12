@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { fetchMessage, deleteMessage } from "@/lib/api";
 import { isAuthenticated, formatTimeAgo } from "@/lib/auth";
-import { getColorFromEmail } from "@/lib/utils";
+import { getColorFromEmail, copyToClipboard } from "@/lib/utils";
 import CopyButton from "@/components/CopyButton";
 import OTPHighlight from "@/components/OTPHighlight";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -19,10 +19,22 @@ export default function MessagePage() {
   const params = useParams();
   const messageId = params?.id as string;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [iframeHeight, setIframeHeight] = useState("300px");
 
   useEffect(() => {
     if (!isAuthenticated()) router.push("/");
   }, [router]);
+
+  // Listener to auto-resize iframe based on message from sandboxed child (L1)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && typeof event.data.height === "number") {
+        setIframeHeight(`${event.data.height}px`);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   const { data: msg, isLoading, error } = useQuery({
     queryKey: ["message", messageId],
@@ -193,9 +205,13 @@ export default function MessagePage() {
 
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                navigator.clipboard.writeText(msg.otp_detected || "");
-                toast.success("Kode OTP disalin! ✅");
+              onClick={async () => {
+                const success = await copyToClipboard(msg.otp_detected || "");
+                if (success) {
+                  toast.success("Kode OTP disalin! ✅");
+                } else {
+                  toast.error("Gagal menyalin Kode OTP");
+                }
               }}
               className="w-full ios-btn-primary !bg-[var(--green)] hover:!bg-[var(--green)]/90"
             >
@@ -217,7 +233,7 @@ export default function MessagePage() {
           <div className="ios-card overflow-hidden">
             {msg.body_html ? (
               <iframe
-                sandbox="allow-same-origin"
+                sandbox="allow-scripts allow-popups"
                 srcDoc={`
                   <!DOCTYPE html>
                   <html>
@@ -241,11 +257,25 @@ export default function MessagePage() {
                       }
                     </style>
                   </head>
-                  <body>${msg.body_html}</body>
+                  <body>
+                    ${msg.body_html}
+                    <script>
+                      function sendHeight() {
+                        window.parent.postMessage({ height: document.documentElement.scrollHeight }, '*');
+                      }
+                      window.addEventListener('load', sendHeight);
+                      if (window.ResizeObserver) {
+                        const ro = new ResizeObserver(entries => {
+                          sendHeight();
+                        });
+                        ro.observe(document.body);
+                      }
+                    </script>
+                  </body>
                   </html>
                 `}
                 className="w-full border-none"
-                style={{ minHeight: "300px", borderRadius: "12px" }}
+                style={{ height: iframeHeight, borderRadius: "12px", transition: "height 0.15s ease-out" }}
                 title="Email content"
               />
             ) : msg.body_text ? (

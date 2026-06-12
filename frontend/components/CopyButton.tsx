@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Copy, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/utils";
 
 interface Props {
   text: string;
@@ -13,21 +14,29 @@ interface Props {
 
 export default function CopyButton({ text, label, size = "default" }: Props) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear timeout on unmount to prevent memory leaks (M15)
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
   async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopied(true);
+      toast.success("Disalin! ✅");
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      timerRef.current = setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast.error("Gagal menyalin teks");
     }
-    setCopied(true);
-    toast.success("Disalin! ✅");
-    setTimeout(() => setCopied(false), 2000);
   }
 
   if (size === "small") {

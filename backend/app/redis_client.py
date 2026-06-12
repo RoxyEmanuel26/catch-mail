@@ -3,8 +3,14 @@ RoxyMail — Upstash Redis REST Client
 Uses httpx to call Upstash Redis REST API (no SDK dependency).
 """
 
+import asyncio
 import httpx
 from app.config import settings
+
+
+class RedisConnectionError(Exception):
+    """Exception raised when Redis operation fails or Redis is unavailable."""
+    pass
 
 
 class RedisClient:
@@ -14,43 +20,53 @@ class RedisClient:
         self.base_url = settings.UPSTASH_REDIS_REST_URL
         self.token = settings.UPSTASH_REDIS_REST_TOKEN
         self._client: httpx.AsyncClient | None = None
+        self._lock = asyncio.Lock()
 
     @property
     def headers(self):
         return {"Authorization": f"Bearer {self.token}"}
 
     async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=self.base_url,
-                headers=self.headers,
-                timeout=10.0,
-            )
-        return self._client
+        async with self._lock:
+            if self._client is None or self._client.is_closed:
+                self._client = httpx.AsyncClient(
+                    base_url=self.base_url,
+                    headers=self.headers,
+                    timeout=10.0,
+                )
+            return self._client
 
     async def _request(self, *args: str):
         """Send a command to Upstash Redis REST API."""
         if not self.base_url or not self.token:
-            # If Redis not configured, return None (graceful degradation)
-            return None
-        client = await self._get_client()
-        path = "/" + "/".join(str(a) for a in args)
-        resp = await client.get(path)
-        if resp.status_code == 200:
+            raise RedisConnectionError("Redis REST URL or Token is not configured")
+        
+        try:
+            client = await self._get_client()
+            path = "/" + "/".join(str(a) for a in args)
+            resp = await client.get(path)
+            if resp.status_code != 200:
+                raise RedisConnectionError(f"Redis returned status code {resp.status_code}")
             data = resp.json()
             return data.get("result")
-        return None
+        except Exception as e:
+            if isinstance(e, RedisConnectionError):
+                raise
+            raise RedisConnectionError(f"Redis request failed: {e}") from e
 
     async def get(self, key: str):
         return await self._request("GET", key)
 
     async def set(self, key: str, value: str, ex: int | None = None):
-        if ex:
+        if ex is not None:
             return await self._request("SET", key, value, "EX", str(ex))
         return await self._request("SET", key, value)
 
     async def incr(self, key: str):
         return await self._request("INCR", key)
+
+    async def decr(self, key: str):
+        return await self._request("DECR", key)
 
     async def expire(self, key: str, seconds: int):
         return await self._request("EXPIRE", key, str(seconds))

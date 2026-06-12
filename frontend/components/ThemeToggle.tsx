@@ -9,7 +9,11 @@ export default function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="w-[39px] h-[39px] rounded-ios bg-[var(--card2)] border border-[var(--border)]" />
+    );
+  }
 
   const cycle = () => {
     if (theme === "system") setTheme("light");

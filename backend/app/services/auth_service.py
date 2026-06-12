@@ -3,11 +3,12 @@ RoxyMail — Auth Service
 Business logic for authentication operations.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
+import uuid
 
 from app.database import get_db
-from app.redis_client import redis
+from app.redis_client import redis, RedisConnectionError
 from app.utils.security import (
     hash_pin,
     verify_pin,
@@ -26,13 +27,15 @@ LOCKOUT_DURATION = 900  # 15 minutes
 async def register_user(username: str, pin: str, domain: str = None) -> dict:
     """Register a new user with email, PIN, and custom domain."""
     db = get_db()
+    
+    # Normalize inputs in service layer (H9)
+    username = username.lower().strip()
     if not domain:
         domain = settings.DOMAIN
     domain = domain.lower().strip()
 
     # Verify domain is allowed
-    allowed_domains = [d.strip() for d in settings.ALLOWED_DOMAINS.split(",")]
-    if domain not in allowed_domains:
+    if domain not in settings.allowed_domains_list:
         raise ValueError("Domain tidak didukung")
 
     email_addr = f"{username}@{domain}"
@@ -42,7 +45,7 @@ async def register_user(username: str, pin: str, domain: str = None) -> dict:
     if existing:
         if existing.get("pin_hash") is None:
             # Claim the auto-created account
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             await db.users.update_one(
                 {"_id": existing["_id"]},
                 {"$set": {
@@ -61,13 +64,13 @@ async def register_user(username: str, pin: str, domain: str = None) -> dict:
             raise ValueError("Email sudah terdaftar")
 
     user_doc = {
-        "_id": str(__import__("uuid").uuid4()),
+        "_id": str(uuid.uuid4()),
         "email": email_addr,
         "username": username,
         "domain": domain,
         "pin_hash": hash_pin(pin),
         "is_active": True,
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
         "expires_at": None,
         "last_login": None,
         "failed_attempts": 0,
@@ -86,12 +89,21 @@ async def register_user(username: str, pin: str, domain: str = None) -> dict:
 async def login_user(email_addr: str, pin: str) -> dict:
     """Authenticate user and return tokens."""
     db = get_db()
+    email_addr = email_addr.lower().strip()
 
     # Check Redis lockout
     lockout_key = f"lockout:{email_addr}"
-    lockout_count = await redis.get(lockout_key)
+    try:
+        lockout_count = await redis.get(lockout_key)
+    except Exception:
+        # Fail-open for lockout check if Redis is down (so users aren't locked out of login)
+        lockout_count = None
+
     if lockout_count and int(lockout_count) >= LOCKOUT_THRESHOLD:
-        ttl = await redis.ttl(lockout_key)
+        try:
+            ttl = await redis.ttl(lockout_key)
+        except Exception:
+            ttl = LOCKOUT_DURATION
         raise PermissionError(f"Akun terkunci. Coba lagi dalam {ttl or LOCKOUT_DURATION} detik")
 
     # Find user
@@ -105,11 +117,15 @@ async def login_user(email_addr: str, pin: str) -> dict:
     # Verify PIN
     if not verify_pin(pin, user["pin_hash"]):
         # Increment failed attempts
-        await redis.incr(lockout_key)
-        await redis.expire(lockout_key, LOCKOUT_DURATION)
+        try:
+            await redis.incr(lockout_key)
+            await redis.expire(lockout_key, LOCKOUT_DURATION)
+            current = await redis.get(lockout_key)
+            remaining = LOCKOUT_THRESHOLD - int(current or 1)
+        except Exception:
+            # Fallback if Redis is down
+            remaining = 0
 
-        current = await redis.get(lockout_key)
-        remaining = LOCKOUT_THRESHOLD - int(current or 1)
         if remaining <= 0:
             raise PermissionError(
                 f"Akun terkunci selama 15 menit setelah {LOCKOUT_THRESHOLD} percobaan gagal"
@@ -117,7 +133,10 @@ async def login_user(email_addr: str, pin: str) -> dict:
         raise ValueError(f"PIN salah. Sisa percobaan: {remaining}")
 
     # Success — clear lockout
-    await redis.delete(lockout_key)
+    try:
+        await redis.delete(lockout_key)
+    except Exception:
+        pass
 
     # Generate tokens
     user_id = user["_id"]
@@ -128,7 +147,7 @@ async def login_user(email_addr: str, pin: str) -> dict:
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     await db.refresh_tokens.insert_one(
         {
-            "_id": str(__import__("uuid").uuid4()),
+            "_id": str(uuid.uuid4()),
             "user_id": user_id,
             "token_hash": token_hash,
             "expires_at": refresh_exp,
@@ -137,7 +156,7 @@ async def login_user(email_addr: str, pin: str) -> dict:
 
     # Update last_login
     await db.users.update_one(
-        {"_id": user_id}, {"$set": {"last_login": datetime.utcnow()}}
+        {"_id": user_id}, {"$set": {"last_login": datetime.now(timezone.utc)}}
     )
 
     return {
@@ -157,7 +176,7 @@ async def login_user(email_addr: str, pin: str) -> dict:
 
 
 async def refresh_access_token(refresh_token: str) -> dict:
-    """Generate a new access token using a refresh token."""
+    """Generate a new access token and rotate the refresh token (RTR)."""
     db = get_db()
 
     payload = decode_token(refresh_token)
@@ -170,6 +189,8 @@ async def refresh_access_token(refresh_token: str) -> dict:
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     stored = await db.refresh_tokens.find_one({"token_hash": token_hash})
     if not stored:
+        # Replay attack protection: revoke all refresh tokens for this user
+        await db.refresh_tokens.delete_many({"user_id": user_id})
         raise ValueError("Token refresh tidak ditemukan atau sudah digunakan")
 
     # Get user email
@@ -177,11 +198,27 @@ async def refresh_access_token(refresh_token: str) -> dict:
     if not user:
         raise ValueError("User tidak ditemukan")
 
-    # Generate new access token
+    # Rotate: delete old refresh token
+    await db.refresh_tokens.delete_one({"_id": stored["_id"]})
+
+    # Generate new tokens
     new_access = create_access_token(user_id, user["email"])
+    new_refresh, new_jti, new_refresh_exp = create_refresh_token(user_id)
+
+    # Store new refresh token hash
+    new_token_hash = hashlib.sha256(new_refresh.encode()).hexdigest()
+    await db.refresh_tokens.insert_one(
+        {
+            "_id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "token_hash": new_token_hash,
+            "expires_at": new_refresh_exp,
+        }
+    )
 
     return {
         "access_token": new_access,
+        "refresh_token": new_refresh,
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MIN * 60,
     }
 
@@ -195,15 +232,23 @@ async def logout_user(access_token: str, user_id: str):
     if payload and "jti" in payload:
         remaining = get_token_remaining_seconds(access_token)
         if remaining > 0:
-            await redis.set(
-                f"blacklist:{payload['jti']}", "1", ex=remaining
-            )
+            try:
+                await redis.set(
+                    f"blacklist:{payload['jti']}", "1", ex=remaining
+                )
+            except Exception:
+                # Log error but proceed to delete refresh tokens
+                pass
 
     # Delete all refresh tokens for this user
     await db.refresh_tokens.delete_many({"user_id": user_id})
 
 
 async def is_token_blacklisted(jti: str) -> bool:
-    """Check if a token JTI is blacklisted."""
-    result = await redis.get(f"blacklist:{jti}")
-    return result is not None
+    """Check if a token JTI is blacklisted. Fails closed (returns True) on Redis failure."""
+    try:
+        result = await redis.get(f"blacklist:{jti}")
+        return result is not None
+    except Exception:
+        # Fail closed on Redis error for token verification (reject token)
+        return True

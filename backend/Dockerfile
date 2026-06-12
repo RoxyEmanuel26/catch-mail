@@ -7,6 +7,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Run as non-root user for security (H7)
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
+USER appuser
+
 ENV PORT=7860
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port $PORT"]

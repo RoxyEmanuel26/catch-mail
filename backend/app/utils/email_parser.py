@@ -9,25 +9,27 @@ from email import policy
 from email.parser import BytesParser
 from typing import Optional, Dict, Any, Tuple
 
-import bleach
+import nh3
 
 
-# Allowed HTML tags for sanitized email bodies
-ALLOWED_TAGS = list(bleach.ALLOWED_TAGS) + [
+# Allowed HTML tags for sanitized email bodies (removed 'style')
+ALLOWED_TAGS = {
+    # Default common text formatting tags
+    "a", "abbr", "acronym", "b", "blockquote", "code", "em", "i", "li", "ol", "strong", "ul",
+    # Additional structural tags
     "div", "span", "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
-    "table", "thead", "tbody", "tr", "td", "th", "img", "a",
-    "ul", "ol", "li", "strong", "em", "b", "i", "u",
-    "font", "center", "blockquote", "pre", "code",
-    "style", "header", "footer", "section", "article", "nav", "main",
-]
+    "table", "thead", "tbody", "tr", "td", "th", "img",
+    "font", "center", "pre",
+    "header", "footer", "section", "article", "nav", "main",
+}
 
 ALLOWED_ATTRIBUTES = {
-    "*": ["style", "class", "id", "align", "valign", "width", "height"],
-    "a": ["href", "target", "rel"],
-    "img": ["src", "alt", "width", "height"],
-    "td": ["colspan", "rowspan"],
-    "th": ["colspan", "rowspan"],
-    "font": ["color", "size", "face"],
+    "*": {"style", "class", "id", "align", "valign", "width", "height"},
+    "a": {"href", "target", "rel"},
+    "img": {"src", "alt", "width", "height"},
+    "td": {"colspan", "rowspan"},
+    "th": {"colspan", "rowspan"},
+    "font": {"color", "size", "face"},
 }
 
 # OTP detection patterns (ordered by specificity)
@@ -108,11 +110,10 @@ def parse_raw_email(raw_email: str) -> Dict[str, Any]:
 
     # Sanitize HTML
     if body_html:
-        body_html = bleach.clean(
+        body_html = nh3.clean(
             body_html,
             tags=ALLOWED_TAGS,
             attributes=ALLOWED_ATTRIBUTES,
-            strip=True,
         )
 
     return {

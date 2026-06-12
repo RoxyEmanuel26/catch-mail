@@ -60,4 +60,6 @@ async def close_db():
 
 def get_db():
     """Get the database instance."""
+    if db is None:
+        raise RuntimeError("Database not connected")
     return db

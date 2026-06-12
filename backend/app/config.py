@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     def allowed_origins_list(self) -> List[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
+    @property
+    def allowed_domains_list(self) -> List[str]:
+        return [d.strip() for d in self.ALLOWED_DOMAINS.split(",")]
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
