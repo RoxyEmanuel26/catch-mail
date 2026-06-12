@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   fetchInbox,
@@ -10,6 +10,7 @@ import {
   logoutUser,
   deleteMessage,
   markAllAsRead,
+  fetchMessage,
 } from "@/lib/api";
 import { getUser, isAuthenticated, formatTimeAgo, clearAuth } from "@/lib/auth";
 import { getColorFromEmail } from "@/lib/utils";
@@ -46,9 +47,11 @@ const item = {
 
 export default function InboxPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<UserData | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "otp">("all");
   const prevUnread = useRef(0);
 
@@ -61,14 +64,26 @@ export default function InboxPage() {
     setUser(u);
   }, [router]);
 
+  // Debounce search effect to optimize database queries
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
+
   const inboxQuery = useQuery({
-    queryKey: ["inbox", page, search, filter],
+    queryKey: ["inbox", page, debouncedSearch, filter],
     queryFn: () =>
       fetchInbox({
         page,
         limit: 20,
         unread_only: filter === "unread",
-        search,
+        search: debouncedSearch,
       }),
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
@@ -81,6 +96,15 @@ export default function InboxPage() {
     refetchInterval: 10000,
     enabled: !!user,
   });
+
+  // Prefetch message details on card hover for instant 0ms load
+  const prefetchMsg = (id: string) => {
+    queryClient.prefetchQuery({
+      queryKey: ["message", id],
+      queryFn: () => fetchMessage(id),
+      staleTime: 60000, // consider it fresh for 1 minute
+    });
+  };
 
   useEffect(() => {
     if (
@@ -347,6 +371,7 @@ export default function InboxPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   onClick={() => router.push(`/message/${msg.id}`)}
+                  onMouseEnter={() => prefetchMsg(msg.id)}
                   className={`ios-card p-4 cursor-pointer active:scale-[0.98]
                              hover:shadow-ios-lg transition-all duration-200
                              ${!msg.is_read ? "border-l-4 border-l-[var(--accent)]" : ""}`}
