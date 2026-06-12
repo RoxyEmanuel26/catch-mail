@@ -68,8 +68,8 @@ api.interceptors.response.use(
 
 // ── API Functions ──
 
-export async function registerUser(username: string, pin: string) {
-  const res = await api.post("/auth/register", { username, pin });
+export async function registerUser(username: string, pin: string, domain: string) {
+  const res = await api.post("/auth/register", { username, pin, domain });
   return res.data;
 }
 

@@ -54,7 +54,7 @@ async def get_current_user(request: Request) -> dict:
 async def register(data: RegisterRequest):
     """Register a new email address with custom username."""
     try:
-        result = await register_user(data.username, data.pin)
+        result = await register_user(data.username, data.pin, data.domain)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

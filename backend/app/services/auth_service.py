@@ -23,10 +23,19 @@ LOCKOUT_THRESHOLD = 5
 LOCKOUT_DURATION = 900  # 15 minutes
 
 
-async def register_user(username: str, pin: str) -> dict:
-    """Register a new user with email and PIN."""
+async def register_user(username: str, pin: str, domain: str = None) -> dict:
+    """Register a new user with email, PIN, and custom domain."""
     db = get_db()
-    email_addr = f"{username}@{settings.DOMAIN}"
+    if not domain:
+        domain = settings.DOMAIN
+    domain = domain.lower().strip()
+
+    # Verify domain is allowed
+    allowed_domains = [d.strip() for d in settings.ALLOWED_DOMAINS.split(",")]
+    if domain not in allowed_domains:
+        raise ValueError("Domain tidak didukung")
+
+    email_addr = f"{username}@{domain}"
 
     # Check if email already exists
     existing = await db.users.find_one({"email": email_addr})
@@ -45,7 +54,7 @@ async def register_user(username: str, pin: str) -> dict:
             return {
                 "email": email_addr,
                 "username": username,
-                "domain": settings.DOMAIN,
+                "domain": domain,
                 "created_at": now,
             }
         else:
@@ -55,7 +64,7 @@ async def register_user(username: str, pin: str) -> dict:
         "_id": str(__import__("uuid").uuid4()),
         "email": email_addr,
         "username": username,
-        "domain": settings.DOMAIN,
+        "domain": domain,
         "pin_hash": hash_pin(pin),
         "is_active": True,
         "created_at": datetime.utcnow(),
@@ -69,7 +78,7 @@ async def register_user(username: str, pin: str) -> dict:
     return {
         "email": email_addr,
         "username": username,
-        "domain": settings.DOMAIN,
+        "domain": domain,
         "created_at": user_doc["created_at"],
     }
 

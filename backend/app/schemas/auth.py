@@ -11,6 +11,7 @@ import re
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=30)
     pin: str = Field(..., min_length=6, max_length=6)
+    domain: Optional[str] = None
 
     @field_validator("username")
     @classmethod

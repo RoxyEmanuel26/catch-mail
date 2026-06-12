@@ -10,7 +10,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import CopyButton from "@/components/CopyButton";
 import ThemeToggle from "@/components/ThemeToggle";
 
-const DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || "roxystore.my.id";
+const DOMAINS = [
+  "roxystore.my.id",
+  "kumpulenak.my.id",
+  "kumpulenak.web.id",
+  "missav-j.web.id",
+  "roxy.my.id",
+  "roxypiano.web.id",
+  "roxystore.web.id"
+];
+const DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || DOMAINS[0];
 
 export default function HomePage() {
   const router = useRouter();
@@ -18,10 +27,12 @@ export default function HomePage() {
 
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
+  const [loginDomain, setLoginDomain] = useState(DOMAINS[0]);
   const [loginPin, setLoginPin] = useState(["", "", "", "", "", ""]);
 
   // Register state
   const [regUsername, setRegUsername] = useState("");
+  const [regDomain, setRegDomain] = useState(DOMAINS[0]);
   const [regPin, setRegPin] = useState(["", "", "", "", "", ""]);
   const [regConfirmPin, setRegConfirmPin] = useState(["", "", "", "", "", ""]);
 
@@ -86,7 +97,7 @@ export default function HomePage() {
     }
     const email = loginEmail.includes("@")
       ? loginEmail
-      : `${loginEmail}@${DOMAIN}`;
+      : `${loginEmail}@${loginDomain}`;
 
     setLoading(true);
     try {
@@ -125,9 +136,10 @@ export default function HomePage() {
 
     setLoading(true);
     try {
-      const data = await registerUser(regUsername.toLowerCase(), pin);
+      const data = await registerUser(regUsername.toLowerCase(), pin, regDomain);
       toast.success(`✅ Email ${data.email} berhasil dibuat!`, { duration: 5000 });
       setLoginEmail(data.username);
+      setLoginDomain(regDomain); // Auto-select the registered domain for login
       setActiveTab(0);
       setRegUsername("");
       setRegPin(["", "", "", "", "", ""]);
@@ -265,12 +277,22 @@ export default function HomePage() {
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       placeholder="username"
-                      className="ios-input pl-10 pr-32"
+                      className="ios-input pl-10 pr-44"
                       required
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--subtext)] text-sm select-none">
-                      @{DOMAIN}
-                    </span>
+                    {!loginEmail.includes("@") && (
+                      <select
+                        value={loginDomain}
+                        onChange={(e) => setLoginDomain(e.target.value)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent text-[var(--text)] text-sm outline-none cursor-pointer border-none font-medium text-right max-w-[150px] dark:bg-black"
+                      >
+                        {DOMAINS.map((d) => (
+                          <option key={d} value={d} className="bg-[var(--card)] text-[var(--text)] text-left">
+                            @{d}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -309,13 +331,21 @@ export default function HomePage() {
                       value={regUsername}
                       onChange={(e) => setRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
                       placeholder="roxy_instagram"
-                      className="ios-input pr-32"
+                      className="ios-input pr-44"
                       maxLength={30}
                       required
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--subtext)] text-sm select-none">
-                      @{DOMAIN}
-                    </span>
+                    <select
+                      value={regDomain}
+                      onChange={(e) => setRegDomain(e.target.value)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent text-[var(--text)] text-sm outline-none cursor-pointer border-none font-medium text-right max-w-[150px] dark:bg-black"
+                    >
+                      {DOMAINS.map((d) => (
+                        <option key={d} value={d} className="bg-[var(--card)] text-[var(--text)] text-left">
+                          @{d}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   {regUsername && (
                     <motion.div
@@ -325,9 +355,9 @@ export default function HomePage() {
                     >
                       <span className="text-xs text-[var(--subtext)]">Email kamu:</span>
                       <span className="text-sm text-[var(--accent)] font-medium font-mono">
-                        {regUsername}@{DOMAIN}
+                        {regUsername}@{regDomain}
                       </span>
-                      <CopyButton text={`${regUsername}@${DOMAIN}`} size="small" />
+                      <CopyButton text={`${regUsername}@${regDomain}`} size="small" />
                     </motion.div>
                   )}
                   <p className="text-xs text-[var(--subtext)] mt-1.5">

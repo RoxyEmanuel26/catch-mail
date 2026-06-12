@@ -30,12 +30,12 @@ async def process_inbound_email(data: dict) -> dict:
     user = await db.users.find_one({"email": to_address})
     if not user:
         # Auto-create unclaimed user inbox
-        username = to_address.split("@")[0]
+        username, domain = to_address.split("@")
         user = {
             "_id": str(uuid.uuid4()),
             "email": to_address,
             "username": username,
-            "domain": settings.DOMAIN,
+            "domain": domain,
             "pin_hash": None,
             "is_active": True,
             "created_at": datetime.utcnow(),
