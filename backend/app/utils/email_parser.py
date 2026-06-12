@@ -114,6 +114,7 @@ def parse_raw_email(raw_email: str) -> Dict[str, Any]:
             body_html,
             tags=ALLOWED_TAGS,
             attributes=ALLOWED_ATTRIBUTES,
+            link_rel=None,
         )
 
     return {
