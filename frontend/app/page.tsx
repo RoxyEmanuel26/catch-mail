@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { registerUser, loginUser } from "@/lib/api";
 import { saveAuth, isAuthenticated } from "@/lib/auth";
-import { Mail, AlertCircle, Loader2 } from "lucide-react";
+import { Mail, AlertCircle, Loader2, ChevronDown, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CopyButton from "@/components/CopyButton";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -38,6 +38,8 @@ export default function HomePage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isLoginDomainOpen, setIsLoginDomainOpen] = useState(false);
+  const [isRegDomainOpen, setIsRegDomainOpen] = useState(false);
 
   const loginPinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const regPinRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -220,13 +222,18 @@ export default function HomePage() {
         </div>
 
         {/* Card */}
-        <div className="ios-card overflow-hidden p-6">
+        <div className="ios-card p-6 relative">
           {/* iOS Segmented Control */}
           <div className="flex bg-[var(--card2)] rounded-ios p-1 mb-6">
             {["Masuk", "Buat Email"].map((tab, i) => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(i); setError(""); }}
+                onClick={() => {
+                  setActiveTab(i);
+                  setError("");
+                  setIsLoginDomainOpen(false);
+                  setIsRegDomainOpen(false);
+                }}
                 className={`flex-1 py-2 text-sm font-medium rounded-[10px]
                             transition-all duration-200 relative
                             ${activeTab === i
@@ -277,21 +284,65 @@ export default function HomePage() {
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       placeholder="username"
-                      className="ios-input pl-10 pr-44"
+                      className="ios-input pl-10 pr-52"
                       required
                     />
                     {!loginEmail.includes("@") && (
-                      <select
-                        value={loginDomain}
-                        onChange={(e) => setLoginDomain(e.target.value)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent text-[var(--text)] text-sm outline-none cursor-pointer border-none font-medium text-right max-w-[150px] dark:bg-black"
-                      >
-                        {DOMAINS.map((d) => (
-                          <option key={d} value={d} className="bg-[var(--card)] text-[var(--text)] text-left">
-                            @{d}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                        <button
+                          type="button"
+                          onClick={() => setIsLoginDomainOpen(!isLoginDomainOpen)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--card)] dark:bg-[var(--card2)] hover:bg-[var(--card2)] dark:hover:bg-[var(--border)] border border-[var(--border)] text-xs font-semibold text-[var(--text)] transition-all duration-200 active:scale-95 shadow-ios-sm"
+                        >
+                          <span>@{loginDomain}</span>
+                          <motion.span
+                            animate={{ rotate: isLoginDomainOpen ? 180 : 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="inline-block text-[var(--subtext)]"
+                          >
+                            <ChevronDown size={14} />
+                          </motion.span>
+                        </button>
+                        
+                        <AnimatePresence>
+                          {isLoginDomainOpen && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40 cursor-default"
+                                onClick={() => setIsLoginDomainOpen(false)}
+                              />
+                              <motion.div
+                                initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                                transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                                className="absolute right-0 top-[calc(100%+8px)] w-64 z-50 rounded-ios bg-[var(--card)] border border-[var(--border)] shadow-ios-lg overflow-hidden glass"
+                              >
+                                <div className="max-h-[220px] overflow-y-auto py-1.5 scrollbar-thin">
+                                  {DOMAINS.map((d) => (
+                                    <button
+                                      key={d}
+                                      type="button"
+                                      onClick={() => {
+                                        setLoginDomain(d);
+                                        setIsLoginDomainOpen(false);
+                                      }}
+                                      className="w-full px-4 py-2 flex items-center justify-between hover:bg-[var(--accent)]/10 dark:hover:bg-[var(--accent)]/20 transition-colors duration-150"
+                                    >
+                                      <span className={`text-sm ${loginDomain === d ? "text-[var(--accent)] font-semibold" : "text-[var(--text)]"}`}>
+                                        @{d}
+                                      </span>
+                                      {loginDomain === d && (
+                                        <Check size={16} className="text-[var(--accent)]" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            </>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -331,21 +382,65 @@ export default function HomePage() {
                       value={regUsername}
                       onChange={(e) => setRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
                       placeholder="roxy_instagram"
-                      className="ios-input pr-44"
+                      className="ios-input pr-52"
                       maxLength={30}
                       required
                     />
-                    <select
-                      value={regDomain}
-                      onChange={(e) => setRegDomain(e.target.value)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent text-[var(--text)] text-sm outline-none cursor-pointer border-none font-medium text-right max-w-[150px] dark:bg-black"
-                    >
-                      {DOMAINS.map((d) => (
-                        <option key={d} value={d} className="bg-[var(--card)] text-[var(--text)] text-left">
-                          @{d}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <button
+                        type="button"
+                        onClick={() => setIsRegDomainOpen(!isRegDomainOpen)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--card)] dark:bg-[var(--card2)] hover:bg-[var(--card2)] dark:hover:bg-[var(--border)] border border-[var(--border)] text-xs font-semibold text-[var(--text)] transition-all duration-200 active:scale-95 shadow-ios-sm"
+                      >
+                        <span>@{regDomain}</span>
+                        <motion.span
+                          animate={{ rotate: isRegDomainOpen ? 180 : 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="inline-block text-[var(--subtext)]"
+                        >
+                          <ChevronDown size={14} />
+                        </motion.span>
+                      </button>
+                      
+                      <AnimatePresence>
+                        {isRegDomainOpen && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40 cursor-default"
+                              onClick={() => setIsRegDomainOpen(false)}
+                            />
+                            <motion.div
+                              initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                              className="absolute right-0 top-[calc(100%+8px)] w-64 z-50 rounded-ios bg-[var(--card)] border border-[var(--border)] shadow-ios-lg overflow-hidden glass"
+                            >
+                              <div className="max-h-[220px] overflow-y-auto py-1.5 scrollbar-thin">
+                                {DOMAINS.map((d) => (
+                                  <button
+                                    key={d}
+                                    type="button"
+                                    onClick={() => {
+                                      setRegDomain(d);
+                                      setIsRegDomainOpen(false);
+                                    }}
+                                    className="w-full px-4 py-2 flex items-center justify-between hover:bg-[var(--accent)]/10 dark:hover:bg-[var(--accent)]/20 transition-colors duration-150"
+                                  >
+                                    <span className={`text-sm ${regDomain === d ? "text-[var(--accent)] font-semibold" : "text-[var(--text)]"}`}>
+                                      @{d}
+                                    </span>
+                                    {regDomain === d && (
+                                      <Check size={16} className="text-[var(--accent)]" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                   {regUsername && (
                     <motion.div
