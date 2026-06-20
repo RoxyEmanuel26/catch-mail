@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { registerUser, loginUser } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { registerUser, loginUser, fetchRegisteredEmails } from "@/lib/api";
 import { saveAuth, isAuthenticated } from "@/lib/auth";
 import { Mail, AlertCircle, Loader2, ChevronDown, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,6 +17,13 @@ const DOMAIN = DEFAULT_DOMAIN;
 export default function HomePage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState(0); // 0=login, 1=register
+
+  // Fetch registered emails
+  const { data: registeredEmails = [], refetch: refetchEmails } = useQuery({
+    queryKey: ["registered-emails"],
+    queryFn: fetchRegisteredEmails,
+    refetchInterval: 10000,
+  });
 
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
@@ -140,6 +148,7 @@ export default function HomePage() {
       setRegUsername("");
       setRegPin(["", "", "", "", "", ""]);
       setRegConfirmPin(["", "", "", "", "", ""]);
+      refetchEmails();
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };
       const msg = e.response?.data?.detail || "Registrasi gagal";
@@ -357,6 +366,46 @@ export default function HomePage() {
                     "Masuk"
                   )}
                 </button>
+
+                {/* List of registered emails */}
+                {registeredEmails.length > 0 && (
+                  <div className="pt-4 border-t border-[var(--border)] mt-4">
+                    <p className="text-xs font-semibold text-[var(--subtext)] mb-2.5 uppercase tracking-wider text-left">
+                      Pilih Akun Terdaftar
+                    </p>
+                    <div className="max-h-[140px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
+                      {registeredEmails.map((email) => (
+                        <button
+                          key={email}
+                          type="button"
+                          onClick={() => {
+                            if (email.includes("@")) {
+                              const [userPart, domainPart] = email.split("@");
+                              if (DOMAINS.includes(domainPart)) {
+                                setLoginEmail(userPart);
+                                setLoginDomain(domainPart);
+                              } else {
+                                setLoginEmail(email);
+                              }
+                            } else {
+                              setLoginEmail(email);
+                            }
+                            // Set focus to the first PIN box
+                            loginPinRefs.current[0]?.focus();
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-ios bg-[var(--card2)] hover:bg-[var(--border)] border border-[var(--border)] text-sm transition-colors duration-150 flex items-center justify-between group"
+                        >
+                          <span className="font-mono text-xs font-medium text-[var(--text)] group-hover:text-[var(--accent)] truncate">
+                            {email}
+                          </span>
+                          <span className="text-[10px] font-semibold text-[var(--subtext)] bg-[var(--card)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+                            Pilih
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </motion.form>
             ) : (
               <motion.form

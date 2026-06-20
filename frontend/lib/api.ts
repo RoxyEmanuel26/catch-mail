@@ -169,4 +169,9 @@ export async function fetchInboxStats() {
   return res.data;
 }
 
+export async function fetchRegisteredEmails(): Promise<string[]> {
+  const res = await api.get("/auth/registered-emails");
+  return res.data;
+}
+
 export default api;

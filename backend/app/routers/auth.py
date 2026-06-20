@@ -4,6 +4,7 @@ RoxyMail — Auth Router
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Request
+from typing import List
 from app.schemas.auth import (
     RegisterRequest,
     RegisterResponse,
@@ -83,6 +84,15 @@ async def refresh(data: RefreshRequest):
         return result
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
+
+
+@router.get("/registered-emails", response_model=List[str])
+async def get_registered_emails():
+    """Get list of all registered email addresses (public for switching accounts)."""
+    db = get_db()
+    cursor = db.users.find({"pin_hash": {"$ne": None}}, {"email": 1}).sort("created_at", -1)
+    emails = [user["email"] async for user in cursor]
+    return emails
 
 
 @router.post("/logout")
