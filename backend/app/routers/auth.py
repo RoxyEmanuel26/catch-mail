@@ -5,6 +5,7 @@ RoxyMail — Auth Router
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import List
+from app.database import get_db
 from app.schemas.auth import (
     RegisterRequest,
     RegisterResponse,
