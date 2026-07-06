@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     # Inbox limits
     MAX_MESSAGES_PER_INBOX: int = 200
-    MESSAGE_TTL_HOURS: int = 24
+    MESSAGE_TTL_HOURS: int = 720
 
     @property
     def allowed_origins_list(self) -> List[str]:
