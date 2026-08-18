@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # Domain
     DOMAIN: str = "roxystore.my.id"
-    ALLOWED_DOMAINS: str = "roxystore.my.id,kumpulenak.my.id,kumpulenak.web.id,missav-j.web.id,roxy.my.id,roxypiano.web.id,roxystore.web.id"
+    ALLOWED_DOMAINS: str = "roxystore.my.id,kumpulenak.my.id,kumpulenak.web.id,lusthub.my.id,lusthub.web.id,missav-j.com,missav-j.online,missav-j.web.id,movieflix.site,nicevx.com,nicevx.online,roxy.my.id,roxypiano.web.id,roxystore.web.id"
 
     # Inbox limits
     MAX_MESSAGES_PER_INBOX: int = 200
